@@ -37,6 +37,7 @@ flowchart LR
 | Gold | `gold_team_games` | team × game: margin vs. spread, EPA/play | `src/pipelines/nfl_gold.sql` |
 | Gold | `gold_team_season` | team × season: record, ATS record, EPA ranks | `src/pipelines/nfl_gold.sql` |
 | Gold | `gold_qb_season` | QB × season: EPA/dropback, CPOE | `src/pipelines/nfl_gold.sql` |
+| Serve | NFL Efficiency dashboard | offense vs. defense, lucky-or-good, QB leaders, team trend | `src/dashboards/nfl_efficiency.lvdash.json` |
 
 ## Running on Databricks
 

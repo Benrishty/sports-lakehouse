@@ -125,7 +125,9 @@ schedules; prod runs every Tuesday at 9am ET.
 
 ## 6. Dashboard and Genie: the part recruiters actually look at (1–2 hours)
 
-**AI/BI dashboard** (Dashboards → Create). Suggested tiles:
+**AI/BI dashboard.** It's already defined as code in `src/dashboards/nfl_efficiency.lvdash.json` (datasets in
+`nfl_efficiency_datasets.sql`), and `databricks bundle deploy` creates it. To change it, edit it in the UI, then re-export
+it with the `bundle generate` command below so the repo stays the source of truth. What's on it:
 
 1. Scatter: offensive vs. defensive EPA/play by team, current season (`gold_team_season`), labelled by team.
 2. Bar: QB EPA per dropback, current season, top 15 (`gold_qb_season`).

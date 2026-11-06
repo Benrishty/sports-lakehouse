@@ -1,0 +1,6 @@
+resources:
+  dashboards:
+    nfl_efficiency:
+      display_name: "NFL Efficiency"
+      file_path: ../src/dashboards/nfl_efficiency.lvdash.json
+      warehouse_id: ${var.warehouse_id}

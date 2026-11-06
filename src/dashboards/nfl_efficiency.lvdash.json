@@ -1,0 +1,711 @@
+{
+  "datasets": [
+    {
+      "name": "team_season",
+      "displayName": "team_season",
+      "queryLines": [
+        "SELECT\n",
+        "  season, team, games, wins, losses, ties,\n",
+        "  CONCAT(wins, '-', losses, IF(ties > 0, CONCAT('-', ties), '')) AS record,\n",
+        "  CONCAT(ats_covers, '-', ats_losses) AS ats_record,\n",
+        "  ROUND(off_epa_per_play, 3)  AS offense_epa,\n",
+        "  ROUND(-def_epa_per_play, 3) AS defense_epa,   -- sign flipped: higher = better defense\n",
+        "  ROUND(net_epa_per_play, 3)  AS net_epa,\n",
+        "  net_epa_rank,\n",
+        "  RANK() OVER (PARTITION BY season ORDER BY (wins + 0.5 * ties) / games DESC) AS record_rank,\n",
+        "  net_epa_rank - RANK() OVER (PARTITION BY season ORDER BY (wins + 0.5 * ties) / games DESC) AS luck_gap\n",
+        "FROM workspace.nfl.gold_team_season\n",
+        "ORDER BY season DESC, luck_gap\n"
+      ]
+    },
+    {
+      "name": "qb_leaders",
+      "displayName": "qb_leaders",
+      "queryLines": [
+        "SELECT season, epa_rank, player_name, latest_team, dropbacks,\n",
+        "       ROUND(epa_per_dropback, 3) AS epa_per_dropback, ROUND(cpoe, 1) AS cpoe\n",
+        "FROM workspace.nfl.gold_qb_season\n",
+        "WHERE epa_rank <= 15\n"
+      ]
+    },
+    {
+      "name": "team_games",
+      "displayName": "team_games",
+      "queryLines": [
+        "SELECT season, week, game_date, team, opponent, home_away, outcome,\n",
+        "       CONCAT(points_for, '-', points_against) AS score,\n",
+        "       ROUND(net_epa_per_play, 3) AS net_epa, cover_margin, ats_outcome\n",
+        "FROM workspace.nfl.gold_team_games\n",
+        "WHERE game_type = 'REG'\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "nfl_efficiency",
+      "displayName": "NFL Efficiency",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "headline",
+            "textbox_spec": "# NFL Efficiency\nEvery play since 1999, refreshed each Tuesday. **EPA** = expected points added per play (nflverse model). Offense: higher is better. Defense is sign-flipped so higher is also better. **Luck gap** = net-EPA rank minus record rank: positive means the record flatters the team, negative means it is playing better than its record."
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "season_filter",
+            "queries": [
+              {
+                "name": "filter_season_team_season",
+                "query": {
+                  "datasetName": "team_season",
+                  "fields": [
+                    {
+                      "name": "season",
+                      "expression": "`season`"
+                    },
+                    {
+                      "name": "season_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_season_qb_leaders",
+                "query": {
+                  "datasetName": "qb_leaders",
+                  "fields": [
+                    {
+                      "name": "season",
+                      "expression": "`season`"
+                    },
+                    {
+                      "name": "season_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_season_team_games",
+                "query": {
+                  "datasetName": "team_games",
+                  "fields": [
+                    {
+                      "name": "season",
+                      "expression": "`season`"
+                    },
+                    {
+                      "name": "season_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "season",
+                    "displayName": "season",
+                    "queryName": "filter_season_team_season"
+                  },
+                  {
+                    "fieldName": "season",
+                    "displayName": "season",
+                    "queryName": "filter_season_qb_leaders"
+                  },
+                  {
+                    "fieldName": "season",
+                    "displayName": "season",
+                    "queryName": "filter_season_team_games"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Season"
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "INTEGER",
+                    "values": [
+                      {
+                        "value": "2026"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "off_vs_def",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "team_season",
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    },
+                    {
+                      "name": "record",
+                      "expression": "`record`"
+                    },
+                    {
+                      "name": "net_epa",
+                      "expression": "`net_epa`"
+                    },
+                    {
+                      "name": "offense_epa",
+                      "expression": "`offense_epa`"
+                    },
+                    {
+                      "name": "defense_epa",
+                      "expression": "`defense_epa`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "offense_epa",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Offense EPA/play",
+                  "axis": {
+                    "title": "Offense EPA/play"
+                  }
+                },
+                "y": {
+                  "fieldName": "defense_epa",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Defense EPA/play (higher = better)",
+                  "axis": {
+                    "title": "Defense EPA/play (higher = better)"
+                  }
+                },
+                "label": {
+                  "show": false
+                },
+                "extra": [
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team"
+                  },
+                  {
+                    "fieldName": "record",
+                    "displayName": "Record"
+                  },
+                  {
+                    "fieldName": "net_epa",
+                    "displayName": "Net EPA/play"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Offense vs. Defense",
+                "showDescription": true,
+                "description": "Top-right = good on both sides of the ball. Hover a dot for the team."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "lucky_or_good",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "team_season",
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    },
+                    {
+                      "name": "record",
+                      "expression": "`record`"
+                    },
+                    {
+                      "name": "ats_record",
+                      "expression": "`ats_record`"
+                    },
+                    {
+                      "name": "net_epa",
+                      "expression": "`net_epa`"
+                    },
+                    {
+                      "name": "net_epa_rank",
+                      "expression": "`net_epa_rank`"
+                    },
+                    {
+                      "name": "record_rank",
+                      "expression": "`record_rank`"
+                    },
+                    {
+                      "name": "luck_gap",
+                      "expression": "`luck_gap`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": true,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "team",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Team",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "record",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Record",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "ats_record",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "ATS",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "net_epa",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Net EPA/play",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.000",
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "net_epa_rank",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Net EPA rank",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "record_rank",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Record rank",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "luck_gap",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Luck gap",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "+0;-0;0",
+                    "order": 100006
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Lucky or Good?",
+                "showDescription": true,
+                "description": "Sorted unluckiest first. Negative luck gap = playing better than the record shows."
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 3,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "qb_epa",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "qb_leaders",
+                  "fields": [
+                    {
+                      "name": "player_name",
+                      "expression": "`player_name`"
+                    },
+                    {
+                      "name": "sum(epa_per_dropback)",
+                      "expression": "SUM(`epa_per_dropback`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(epa_per_dropback)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "EPA per dropback",
+                  "axis": {
+                    "title": "EPA per dropback"
+                  }
+                },
+                "y": {
+                  "fieldName": "player_name",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "Quarterback",
+                  "axis": {
+                    "title": ""
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "QB EPA per Dropback (top 15)",
+                "showDescription": true,
+                "description": "Regular season, min. 100 dropbacks."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "team_filter",
+            "queries": [
+              {
+                "name": "filter_team_team_games",
+                "query": {
+                  "datasetName": "team_games",
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    },
+                    {
+                      "name": "team_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "team",
+                    "displayName": "team",
+                    "queryName": "filter_team_team_games"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Team (week-by-week chart)"
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "LA"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 11,
+            "width": 3,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "team_weekly",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "team_games",
+                  "fields": [
+                    {
+                      "name": "week",
+                      "expression": "`week`"
+                    },
+                    {
+                      "name": "sum(net_epa)",
+                      "expression": "SUM(`net_epa`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "week",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Week",
+                  "axis": {
+                    "title": "Week"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(net_epa)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Net EPA/play",
+                  "axis": {
+                    "title": "Net EPA/play"
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Week-by-Week Net EPA",
+                "showDescription": true,
+                "description": "One team's net efficiency per game. Pick the team with the filter above."
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 12,
+            "width": 3,
+            "height": 7
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

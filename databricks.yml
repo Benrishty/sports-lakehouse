@@ -12,6 +12,10 @@ variables:
   schema:
     description: Schema holding the landing volume and the bronze/silver/gold tables.
     default: nfl
+  warehouse_id:
+    description: SQL warehouse the dashboard runs on. Free Edition creates one called "Serverless Starter Warehouse".
+    lookup:
+      warehouse: "Serverless Starter Warehouse"
 
 targets:
   dev:
