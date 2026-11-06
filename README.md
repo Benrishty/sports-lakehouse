@@ -6,7 +6,7 @@ Tuesday after Monday Night Football. Built on Databricks (Unity Catalog, Lakeflo
 Pipelines, Lakeflow Jobs, AI/BI dashboards and Genie), deployed as code with Asset Bundles and
 GitHub Actions.
 
-<!-- TODO: dashboard screenshot here: docs/dashboard.png -->
+![NFL Efficiency dashboard: offense vs. defense EPA with team logos, and the lucky-or-good table](docs/dashboard.png)
 
 ## Architecture
 
