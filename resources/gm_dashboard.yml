@@ -1,0 +1,6 @@
+resources:
+  dashboards:
+    gm_office:
+      display_name: "GM Office"
+      file_path: ../src/dashboards/gm_office.lvdash.json
+      warehouse_id: ${var.warehouse_id}

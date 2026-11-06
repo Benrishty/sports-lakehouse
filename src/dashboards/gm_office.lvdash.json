@@ -1,0 +1,4136 @@
+{
+  "datasets": [
+    {
+      "name": "gm_summary",
+      "displayName": "gm_summary",
+      "queryLines": [
+        "SELECT st.team, st.team_name, s.team_logo_url,\n",
+        "       CONCAT(st.wins, '-', st.losses, IF(st.ties > 0, CONCAT('-', st.ties), '')) AS record,\n",
+        "       st.division, st.division_rank, st.division_games_back, st.conference_seed, st.in_playoff_position,\n",
+        "       s.net_epa_rank, s.luck_gap, ROUND(s.net_epa_per_play, 3) AS net_epa_per_play,\n",
+        "       CONCAT(b.ats_covers, '-', b.ats_losses) AS ats_record\n",
+        "FROM workspace.nfl.gold_standings st\n",
+        "JOIN workspace.nfl.gold_team_season s ON s.season = st.season AND s.team = st.team\n",
+        "LEFT JOIN workspace.nfl.gold_team_betting b ON b.season = st.season AND b.team = st.team\n",
+        "WHERE st.season = (SELECT MAX(season) FROM workspace.nfl.gold_standings)\n"
+      ]
+    },
+    {
+      "name": "gm_report_card",
+      "displayName": "gm_report_card",
+      "queryLines": [
+        "SELECT r.team, r.metric_order, r.phase, r.metric,\n",
+        "       CASE WHEN r.metric LIKE '%rate%' OR r.metric LIKE '%percentage%'\n",
+        "              THEN CONCAT(FORMAT_NUMBER(100 * r.value, 1), '%')\n",
+        "            WHEN r.metric LIKE '%EPA%' THEN FORMAT_NUMBER(r.value, 3)\n",
+        "            ELSE FORMAT_NUMBER(r.value, 1) END AS value,\n",
+        "       CASE WHEN r.metric LIKE '%rate%' OR r.metric LIKE '%percentage%'\n",
+        "              THEN CONCAT(FORMAT_NUMBER(100 * r.league_avg, 1), '%')\n",
+        "            WHEN r.metric LIKE '%EPA%' THEN FORMAT_NUMBER(r.league_avg, 3)\n",
+        "            ELSE FORMAT_NUMBER(r.league_avg, 1) END AS league_avg,\n",
+        "       r.league_rank,\n",
+        "       CASE r.tier WHEN 'top tier' THEN '\ud83d\udfe2 top tier' WHEN 'above average' THEN '\ud83d\udfe1 above average'\n",
+        "                   WHEN 'below average' THEN '\ud83d\udfe0 below average' WHEN 'bottom tier' THEN '\ud83d\udd34 bottom tier'\n",
+        "                   ELSE '\u26aa tendency' END AS tier,\n",
+        "       ROUND(100 * r.percentile) AS percentile\n",
+        "FROM workspace.nfl.gold_team_report_card r\n",
+        "WHERE r.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card)\n",
+        "ORDER BY r.metric_order\n"
+      ]
+    },
+    {
+      "name": "gm_percentiles",
+      "displayName": "gm_percentiles",
+      "queryLines": [
+        "SELECT r.team, CONCAT(r.phase, ': ', r.metric) AS metric, ROUND(100 * r.percentile) AS percentile\n",
+        "FROM workspace.nfl.gold_team_report_card r\n",
+        "WHERE r.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card) AND r.better <> 'neutral'\n"
+      ]
+    },
+    {
+      "name": "gm_freshness",
+      "displayName": "gm_freshness",
+      "queryLines": [
+        "SELECT source, latest_season, latest_week, cadence FROM workspace.nfl.gold_data_freshness\n"
+      ]
+    },
+    {
+      "name": "gm_cap_allocation",
+      "displayName": "gm_cap_allocation",
+      "queryLines": [
+        "SELECT c.team, c.position_group, c.players, ROUND(c.apy_m, 1) AS apy_m,\n",
+        "       ROUND(100 * c.share_of_team_apy, 1) AS team_share_pct,\n",
+        "       ROUND(100 * c.league_avg_share, 1) AS league_avg_pct,\n",
+        "       ROUND(100 * c.top8_avg_share, 1) AS top8_avg_pct,\n",
+        "       ROUND(100 * c.share_vs_league, 1) AS vs_league_pts\n",
+        "FROM workspace.nfl.gold_cap_allocation c\n",
+        "ORDER BY c.share_of_team_apy DESC\n"
+      ]
+    },
+    {
+      "name": "gm_roster_value",
+      "displayName": "gm_roster_value",
+      "queryLines": [
+        "SELECT v.team, v.headshot_url, v.player_name, v.position_group, v.age,\n",
+        "       ROUND(v.apy_m, 1) AS apy_m, ROUND(v.guaranteed_m, 1) AS guaranteed_m, v.final_season,\n",
+        "       v.role, ROUND(100 * v.snap_share) AS snap_pct, v.production_metric_name,\n",
+        "       ROUND(v.production_metric, 2) AS production, ROUND(100 * v.value_score) AS value_score,\n",
+        "       CASE WHEN v.value_score >= 0.25 THEN '\ud83d\udcb0 bargain' WHEN v.value_score <= -0.25 THEN '\u26a0\ufe0f overpaid'\n",
+        "            WHEN v.value_score IS NULL THEN '' ELSE 'fair' END AS verdict\n",
+        "FROM workspace.nfl.gold_player_value v\n",
+        "WHERE v.team IS NOT NULL\n",
+        "ORDER BY v.apy_m DESC\n"
+      ]
+    },
+    {
+      "name": "gm_expiring",
+      "displayName": "gm_expiring",
+      "queryLines": [
+        "SELECT v.team, v.headshot_url, v.player_name, v.position_group, v.age, ROUND(v.apy_m, 1) AS apy_m,\n",
+        "       v.final_season, v.role, ROUND(100 * v.snap_share) AS snap_pct, ROUND(100 * v.value_score) AS value_score\n",
+        "FROM workspace.nfl.gold_player_value v\n",
+        "WHERE v.team IS NOT NULL AND v.final_season <= v.season\n",
+        "ORDER BY v.snap_share DESC NULLS LAST, v.apy_m DESC\n"
+      ]
+    },
+    {
+      "name": "gm_personnel",
+      "displayName": "gm_personnel",
+      "queryLines": [
+        "SELECT a.latest_team AS team, a.headshot_url, a.player_name, a.position_group, a.role,\n",
+        "       ROUND(100 * a.snap_share) AS snap_pct, a.games,\n",
+        "       ROUND(COALESCE(a.passing_epa, 0) + COALESCE(a.rushing_epa, 0) + COALESCE(a.receiving_epa, 0), 1) AS offensive_epa,\n",
+        "       ROUND(a.rush_yards_over_expected_per_att, 2) AS ryoe_per_att,\n",
+        "       ROUND(a.avg_separation, 2) AS separation_yds,\n",
+        "       ROUND(a.avg_yac_above_expectation, 2) AS yac_over_expected,\n",
+        "       a.sacks_plus_hits,\n",
+        "       ROUND(a.sacks_hits_per_100_snaps, 1) AS sacks_hits_per_100,\n",
+        "       ROUND(a.ball_production_per_100_snaps, 1) AS pd_int_per_100,\n",
+        "       ROUND(a.tackles_per_100_snaps, 1) AS tackles_per_100\n",
+        "FROM workspace.nfl.gold_player_advanced a\n",
+        "WHERE a.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND a.snap_share >= 0.25\n",
+        "ORDER BY CASE a.position_group WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 WHEN 'OL' THEN 5\n",
+        "                               WHEN 'DL' THEN 6 WHEN 'LB' THEN 7 WHEN 'DB' THEN 8 ELSE 9 END, a.snap_share DESC\n"
+      ]
+    },
+    {
+      "name": "gm_draft_projection",
+      "displayName": "gm_draft_projection",
+      "queryLines": [
+        "SELECT p.projected_pick, t.team_logo_url, p.team AS club, p.team_name,\n",
+        "       CONCAT(p.wins, '-', p.losses, IF(p.ties > 0, CONCAT('-', p.ties), '')) AS record,\n",
+        "       ROUND(p.point_differential) AS point_diff, IF(p.in_playoff_position, 'playoff spot', '') AS status\n",
+        "FROM workspace.nfl.gold_draft_order_projection p\n",
+        "LEFT JOIN workspace.nfl.silver_teams t ON t.team = p.team\n",
+        "ORDER BY p.projected_pick\n"
+      ]
+    },
+    {
+      "name": "gm_draft_classes",
+      "displayName": "gm_draft_classes",
+      "queryLines": [
+        "SELECT g.team, g.draft_year, g.picks, g.hits, g.pro_bowlers, ROUND(g.surplus_av, 1) AS surplus_av, g.class_rank\n",
+        "FROM workspace.nfl.gold_draft_team_grades g\n",
+        "ORDER BY g.draft_year\n"
+      ]
+    },
+    {
+      "name": "gm_draft_best_misses",
+      "displayName": "gm_draft_best_misses",
+      "queryLines": [
+        "SELECT team, kind, headshot_url, draft_year, round, pick, player_name, position, dr_av, expected_av, surplus_av, seasons_started, probowls\n",
+        "FROM (\n",
+        "  SELECT d.team, d.headshot_url, d.draft_year, d.round, d.pick, d.player_name, d.position, d.dr_av,\n",
+        "         ROUND(d.expected_dr_av, 1) AS expected_av, ROUND(d.surplus_av, 1) AS surplus_av, d.seasons_started, d.probowls,\n",
+        "         ROW_NUMBER() OVER (PARTITION BY d.team ORDER BY d.surplus_av DESC) AS best_rk,\n",
+        "         ROW_NUMBER() OVER (PARTITION BY d.team ORDER BY d.surplus_av ASC) AS miss_rk,\n",
+        "         IF(ROW_NUMBER() OVER (PARTITION BY d.team ORDER BY d.surplus_av DESC) <= 10, '\u2705 best value', '\u274c biggest miss') AS kind\n",
+        "  FROM workspace.nfl.gold_draft_pick_value d\n",
+        "  WHERE d.is_mature AND d.draft_year >= (SELECT MAX(draft_year) - 15 FROM workspace.nfl.gold_draft_pick_value) AND d.round <= 3\n",
+        ")\n",
+        "WHERE best_rk <= 10 OR miss_rk <= 10\n",
+        "ORDER BY kind DESC, surplus_av DESC\n"
+      ]
+    },
+    {
+      "name": "gm_position_value",
+      "displayName": "gm_position_value",
+      "queryLines": [
+        "SELECT round, position, picks, ROUND(100 * hit_rate) AS hit_rate_pct, ROUND(100 * pro_bowl_rate) AS pro_bowl_pct,\n",
+        "       ROUND(avg_av_for_team, 1) AS avg_av\n",
+        "FROM workspace.nfl.gold_draft_position_value\n",
+        "WHERE round <= 3 AND picks >= 15\n",
+        "ORDER BY round, hit_rate DESC\n"
+      ]
+    },
+    {
+      "name": "gm_injuries",
+      "displayName": "gm_injuries",
+      "queryLines": [
+        "SELECT i.team, i.headshot_url, i.player_name, i.position, COALESCE(i.report_status, 'Limited/none') AS status, i.injury,\n",
+        "       i.practice_status, i.role, ROUND(100 * i.snap_share) AS snap_pct, ROUND(i.apy_m, 1) AS apy_m, i.week\n",
+        "FROM workspace.nfl.gold_injury_report i\n",
+        "ORDER BY CASE i.report_status WHEN 'Out' THEN 1 WHEN 'Doubtful' THEN 2 WHEN 'Questionable' THEN 3 ELSE 4 END,\n",
+        "         i.snap_share DESC NULLS LAST\n"
+      ]
+    },
+    {
+      "name": "gm_injury_league",
+      "displayName": "gm_injury_league",
+      "queryLines": [
+        "SELECT x.team AS club, x.starter_games_out, x.starters_missing_time, x.player_games_out,\n",
+        "       ROUND(x.starter_apy_affected_m, 1) AS starter_apy_affected_m, x.rank_fewest_starter_games_lost\n",
+        "FROM workspace.nfl.gold_team_injury_impact x\n",
+        "WHERE x.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_injury_impact)\n",
+        "ORDER BY x.starter_games_out DESC\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "report_card",
+      "displayName": "Team Report Card",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "rc_head",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# GM Office\n",
+                "Pick your team in the filter bar. Current regular season. Ranks are out of 32 (1 = best, direction-aware). Tiers: \ud83d\udfe2 1-8, \ud83d\udfe1 9-16, \ud83d\udfe0 17-24, \ud83d\udd34 25-32.\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "rc_summary",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_summary",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "team_logo_url",
+                      "expression": "`team_logo_url`"
+                    },
+                    {
+                      "name": "team_name",
+                      "expression": "`team_name`"
+                    },
+                    {
+                      "name": "record",
+                      "expression": "`record`"
+                    },
+                    {
+                      "name": "division",
+                      "expression": "`division`"
+                    },
+                    {
+                      "name": "division_rank",
+                      "expression": "`division_rank`"
+                    },
+                    {
+                      "name": "division_games_back",
+                      "expression": "`division_games_back`"
+                    },
+                    {
+                      "name": "conference_seed",
+                      "expression": "`conference_seed`"
+                    },
+                    {
+                      "name": "net_epa_rank",
+                      "expression": "`net_epa_rank`"
+                    },
+                    {
+                      "name": "luck_gap",
+                      "expression": "`luck_gap`"
+                    },
+                    {
+                      "name": "ats_record",
+                      "expression": "`ats_record`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "team_logo_url",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "",
+                    "imageWidth": "40",
+                    "imageHeight": "40",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "image",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "team_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Team",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "record",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Record",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "division",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Division",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "division_rank",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Div rank",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "division_games_back",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "GB",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "conference_seed",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Seed (approx.)",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "net_epa_rank",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Net EPA rank",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100007
+                  },
+                  {
+                    "fieldName": "luck_gap",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Luck gap",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100008
+                  },
+                  {
+                    "fieldName": "ats_record",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "ATS",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100009
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Where we stand",
+                "showDescription": true,
+                "description": "Seed approximates NFL tiebreakers with point differential. Luck gap < 0 = playing better than the record."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "rc_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_report_card",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "phase",
+                      "expression": "`phase`"
+                    },
+                    {
+                      "name": "metric",
+                      "expression": "`metric`"
+                    },
+                    {
+                      "name": "value",
+                      "expression": "`value`"
+                    },
+                    {
+                      "name": "league_avg",
+                      "expression": "`league_avg`"
+                    },
+                    {
+                      "name": "league_rank",
+                      "expression": "`league_rank`"
+                    },
+                    {
+                      "name": "tier",
+                      "expression": "`tier`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "phase",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Phase",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "metric",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Metric",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "value",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Us",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "league_avg",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "League avg",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "league_rank",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Rank",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "tier",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Tier",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100005
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Report card",
+                "showDescription": true,
+                "description": "Every phase of the game vs. the league."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 7,
+            "height": 15
+          }
+        },
+        {
+          "widget": {
+            "name": "rc_pct",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_percentiles",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "metric",
+                      "expression": "`metric`"
+                    },
+                    {
+                      "name": "avg(percentile)",
+                      "expression": "AVG(`percentile`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "metric",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "Team"
+                },
+                "y": {
+                  "fieldName": "avg(percentile)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Percentile",
+                  "axis": {
+                    "title": "Percentile"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Percentile by metric (100 = best in league)"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 5,
+            "width": 5,
+            "height": 15
+          }
+        },
+        {
+          "widget": {
+            "name": "rc_fresh",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_freshness",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "source",
+                      "expression": "`source`"
+                    },
+                    {
+                      "name": "latest_season",
+                      "expression": "`latest_season`"
+                    },
+                    {
+                      "name": "latest_week",
+                      "expression": "`latest_week`"
+                    },
+                    {
+                      "name": "cadence",
+                      "expression": "`cadence`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "source",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Source",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "latest_season",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Season",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "latest_week",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Week / games",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "cadence",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Cadence",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100003
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Data as of",
+                "showDescription": true,
+                "description": "PFR advanced stats are season files that lag during the season."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "roster_cap",
+      "displayName": "Roster & Cap",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "cap_head",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Roster & Cap\n",
+                "Contract value is APY (average annual value, $M) from OverTheCap, not the exact current-year cap hit. **Value score** = production percentile minus cost percentile within the position group (-100..+100), current season, players with 25%+ snap share. OL and specialists are not scored (no individual blocking data).\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "cap_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_cap_allocation",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "position_group",
+                      "expression": "`position_group`"
+                    },
+                    {
+                      "name": "avg(vs_league_pts)",
+                      "expression": "AVG(`vs_league_pts`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "position_group",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "Team"
+                },
+                "y": {
+                  "fieldName": "avg(vs_league_pts)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Pts vs. league",
+                  "axis": {
+                    "title": "Pts vs. league"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Spend vs. league average by position group (percentage points of team APY)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "cap_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_cap_allocation",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "position_group",
+                      "expression": "`position_group`"
+                    },
+                    {
+                      "name": "players",
+                      "expression": "`players`"
+                    },
+                    {
+                      "name": "apy_m",
+                      "expression": "`apy_m`"
+                    },
+                    {
+                      "name": "team_share_pct",
+                      "expression": "`team_share_pct`"
+                    },
+                    {
+                      "name": "league_avg_pct",
+                      "expression": "`league_avg_pct`"
+                    },
+                    {
+                      "name": "top8_avg_pct",
+                      "expression": "`top8_avg_pct`"
+                    },
+                    {
+                      "name": "vs_league_pts",
+                      "expression": "`vs_league_pts`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "position_group",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Group",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "players",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Players",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "apy_m",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "APY $M",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "team_share_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Our share %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "league_avg_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "League %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "top8_avg_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Top-8 teams %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "vs_league_pts",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Vs league",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100006
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Cap allocation",
+                "showDescription": true,
+                "description": "Top-8 = the 8 best teams by current net EPA."
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "value_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_roster_value",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "headshot_url",
+                      "expression": "`headshot_url`"
+                    },
+                    {
+                      "name": "player_name",
+                      "expression": "`player_name`"
+                    },
+                    {
+                      "name": "position_group",
+                      "expression": "`position_group`"
+                    },
+                    {
+                      "name": "age",
+                      "expression": "`age`"
+                    },
+                    {
+                      "name": "apy_m",
+                      "expression": "`apy_m`"
+                    },
+                    {
+                      "name": "guaranteed_m",
+                      "expression": "`guaranteed_m`"
+                    },
+                    {
+                      "name": "final_season",
+                      "expression": "`final_season`"
+                    },
+                    {
+                      "name": "role",
+                      "expression": "`role`"
+                    },
+                    {
+                      "name": "snap_pct",
+                      "expression": "`snap_pct`"
+                    },
+                    {
+                      "name": "production_metric_name",
+                      "expression": "`production_metric_name`"
+                    },
+                    {
+                      "name": "production",
+                      "expression": "`production`"
+                    },
+                    {
+                      "name": "value_score",
+                      "expression": "`value_score`"
+                    },
+                    {
+                      "name": "verdict",
+                      "expression": "`verdict`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "headshot_url",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "",
+                    "imageWidth": "36",
+                    "imageHeight": "36",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "image",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "player_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Player",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "position_group",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Pos",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "age",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Age",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "apy_m",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "APY $M",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "guaranteed_m",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Gtd $M",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "final_season",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Thru",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "role",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Role",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100007
+                  },
+                  {
+                    "fieldName": "snap_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Snap %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100008
+                  },
+                  {
+                    "fieldName": "production_metric_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Measured by",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100009
+                  },
+                  {
+                    "fieldName": "production",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Production",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.00",
+                    "order": 100010
+                  },
+                  {
+                    "fieldName": "value_score",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Value",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100011
+                  },
+                  {
+                    "fieldName": "verdict",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100012
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Contracts vs. production",
+                "showDescription": true,
+                "description": "Sorted by APY. Bargain = value score >= 25, overpaid <= -25."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 13
+          }
+        },
+        {
+          "widget": {
+            "name": "expiring_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_expiring",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "headshot_url",
+                      "expression": "`headshot_url`"
+                    },
+                    {
+                      "name": "player_name",
+                      "expression": "`player_name`"
+                    },
+                    {
+                      "name": "position_group",
+                      "expression": "`position_group`"
+                    },
+                    {
+                      "name": "age",
+                      "expression": "`age`"
+                    },
+                    {
+                      "name": "apy_m",
+                      "expression": "`apy_m`"
+                    },
+                    {
+                      "name": "role",
+                      "expression": "`role`"
+                    },
+                    {
+                      "name": "snap_pct",
+                      "expression": "`snap_pct`"
+                    },
+                    {
+                      "name": "value_score",
+                      "expression": "`value_score`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "headshot_url",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "",
+                    "imageWidth": "32",
+                    "imageHeight": "32",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "image",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "player_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Player",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "position_group",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Pos",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "age",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Age",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "apy_m",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "APY $M",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "role",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Role",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "snap_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Snap %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "value_score",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Value",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100007
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Contracts ending this season: re-sign, replace or let walk"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 24,
+            "width": 12,
+            "height": 9
+          }
+        }
+      ]
+    },
+    {
+      "name": "personnel",
+      "displayName": "Personnel",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "pers_head",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Personnel\n",
+                "Current-season contributors (25%+ snap share) with the advanced metric that fits each role: offensive EPA, Next Gen Stats (RYOE per carry, receiver separation, YAC over expected) and play-by-play defensive credit per 100 snaps.\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "pers_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_personnel",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "headshot_url",
+                      "expression": "`headshot_url`"
+                    },
+                    {
+                      "name": "player_name",
+                      "expression": "`player_name`"
+                    },
+                    {
+                      "name": "position_group",
+                      "expression": "`position_group`"
+                    },
+                    {
+                      "name": "role",
+                      "expression": "`role`"
+                    },
+                    {
+                      "name": "snap_pct",
+                      "expression": "`snap_pct`"
+                    },
+                    {
+                      "name": "games",
+                      "expression": "`games`"
+                    },
+                    {
+                      "name": "offensive_epa",
+                      "expression": "`offensive_epa`"
+                    },
+                    {
+                      "name": "ryoe_per_att",
+                      "expression": "`ryoe_per_att`"
+                    },
+                    {
+                      "name": "separation_yds",
+                      "expression": "`separation_yds`"
+                    },
+                    {
+                      "name": "yac_over_expected",
+                      "expression": "`yac_over_expected`"
+                    },
+                    {
+                      "name": "sacks_plus_hits",
+                      "expression": "`sacks_plus_hits`"
+                    },
+                    {
+                      "name": "sacks_hits_per_100",
+                      "expression": "`sacks_hits_per_100`"
+                    },
+                    {
+                      "name": "pd_int_per_100",
+                      "expression": "`pd_int_per_100`"
+                    },
+                    {
+                      "name": "tackles_per_100",
+                      "expression": "`tackles_per_100`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "headshot_url",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "",
+                    "imageWidth": "36",
+                    "imageHeight": "36",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "image",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "player_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Player",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "position_group",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Pos",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "role",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Role",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "snap_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Snap %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "games",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "G",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "offensive_epa",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Off. EPA",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "ryoe_per_att",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "RYOE/att",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.00",
+                    "order": 100007
+                  },
+                  {
+                    "fieldName": "separation_yds",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Separation",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.00",
+                    "order": 100008
+                  },
+                  {
+                    "fieldName": "yac_over_expected",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "YAC OE",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.00",
+                    "order": 100009
+                  },
+                  {
+                    "fieldName": "sacks_plus_hits",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Sacks+hits",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100010
+                  },
+                  {
+                    "fieldName": "sacks_hits_per_100",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Sk+hits /100",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100011
+                  },
+                  {
+                    "fieldName": "pd_int_per_100",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "PD+INT /100",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100012
+                  },
+                  {
+                    "fieldName": "tackles_per_100",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Tkl /100",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100013
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Player performance"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 22
+          }
+        }
+      ]
+    },
+    {
+      "name": "draft",
+      "displayName": "Draft",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "draft_head",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Draft\n",
+                "Value = PFR approximate value earned for the drafting team vs. the average at that pick slot (picks within 4 slots, classes 5+ years old). Hit = 3+ seasons as a starter.\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "proj_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_draft_projection",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "projected_pick",
+                      "expression": "`projected_pick`"
+                    },
+                    {
+                      "name": "team_logo_url",
+                      "expression": "`team_logo_url`"
+                    },
+                    {
+                      "name": "team_name",
+                      "expression": "`team_name`"
+                    },
+                    {
+                      "name": "record",
+                      "expression": "`record`"
+                    },
+                    {
+                      "name": "point_diff",
+                      "expression": "`point_diff`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "projected_pick",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Pick",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "team_logo_url",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "",
+                    "imageWidth": "28",
+                    "imageHeight": "28",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "image",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "team_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Team",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "record",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Record",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "point_diff",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Pt diff",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "status",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100005
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Projected first-round order if the season ended today",
+                "showDescription": true,
+                "description": "Ignores playoff results and traded picks."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 5,
+            "height": 20
+          }
+        },
+        {
+          "widget": {
+            "name": "class_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_draft_classes",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "draft_year",
+                      "expression": "`draft_year`"
+                    },
+                    {
+                      "name": "avg(surplus_av)",
+                      "expression": "AVG(`surplus_av`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "draft_year",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "Team"
+                },
+                "y": {
+                  "fieldName": "avg(surplus_av)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Surplus AV",
+                  "axis": {
+                    "title": "Surplus AV"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Our draft classes: AV above / below slot expectation"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 2,
+            "width": 7,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "best_miss_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_draft_best_misses",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "expression": "`kind`"
+                    },
+                    {
+                      "name": "headshot_url",
+                      "expression": "`headshot_url`"
+                    },
+                    {
+                      "name": "player_name",
+                      "expression": "`player_name`"
+                    },
+                    {
+                      "name": "position",
+                      "expression": "`position`"
+                    },
+                    {
+                      "name": "draft_year",
+                      "expression": "`draft_year`"
+                    },
+                    {
+                      "name": "round",
+                      "expression": "`round`"
+                    },
+                    {
+                      "name": "pick",
+                      "expression": "`pick`"
+                    },
+                    {
+                      "name": "dr_av",
+                      "expression": "`dr_av`"
+                    },
+                    {
+                      "name": "expected_av",
+                      "expression": "`expected_av`"
+                    },
+                    {
+                      "name": "surplus_av",
+                      "expression": "`surplus_av`"
+                    },
+                    {
+                      "name": "seasons_started",
+                      "expression": "`seasons_started`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "kind",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "headshot_url",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "",
+                    "imageWidth": "30",
+                    "imageHeight": "30",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "image",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "player_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Player",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "position",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Pos",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "draft_year",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Year",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "round",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Rd",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "pick",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Pick",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "dr_av",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "AV",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100007
+                  },
+                  {
+                    "fieldName": "expected_av",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Slot avg",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100008
+                  },
+                  {
+                    "fieldName": "surplus_av",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Surplus",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100009
+                  },
+                  {
+                    "fieldName": "seasons_started",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Seasons started",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100010
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Best value and biggest misses, rounds 1-3, last 15 classes"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 10,
+            "width": 7,
+            "height": 12
+          }
+        },
+        {
+          "widget": {
+            "name": "pos_value_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_position_value",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "round",
+                      "expression": "`round`"
+                    },
+                    {
+                      "name": "position",
+                      "expression": "`position`"
+                    },
+                    {
+                      "name": "picks",
+                      "expression": "`picks`"
+                    },
+                    {
+                      "name": "hit_rate_pct",
+                      "expression": "`hit_rate_pct`"
+                    },
+                    {
+                      "name": "pro_bowl_pct",
+                      "expression": "`pro_bowl_pct`"
+                    },
+                    {
+                      "name": "avg_av",
+                      "expression": "`avg_av`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "round",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Round",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "position",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Pos",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "picks",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Picks",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "hit_rate_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Hit rate %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "pro_bowl_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Pro Bowl %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "avg_av",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Avg AV",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100005
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "League-wide: which positions pay off by round (since 2000)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "health",
+      "displayName": "Health",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "health_head",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Health\n",
+                "Latest official injury report with each player's role and contract, and how many starter-games each team has lost this season (weeks a starter was listed Out).\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "inj_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_injuries",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "name": "headshot_url",
+                      "expression": "`headshot_url`"
+                    },
+                    {
+                      "name": "player_name",
+                      "expression": "`player_name`"
+                    },
+                    {
+                      "name": "position",
+                      "expression": "`position`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "injury",
+                      "expression": "`injury`"
+                    },
+                    {
+                      "name": "practice_status",
+                      "expression": "`practice_status`"
+                    },
+                    {
+                      "name": "role",
+                      "expression": "`role`"
+                    },
+                    {
+                      "name": "snap_pct",
+                      "expression": "`snap_pct`"
+                    },
+                    {
+                      "name": "apy_m",
+                      "expression": "`apy_m`"
+                    },
+                    {
+                      "name": "week",
+                      "expression": "`week`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": false,
+              "itemsPerPage": 32,
+              "withRowNumber": false,
+              "invisibleColumns": [],
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "headshot_url",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "",
+                    "imageWidth": "32",
+                    "imageHeight": "32",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "image",
+                    "visible": true,
+                    "title": "",
+                    "allowSearch": false,
+                    "alignContent": "center",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100000
+                  },
+                  {
+                    "fieldName": "player_name",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Player",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100001
+                  },
+                  {
+                    "fieldName": "position",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Pos",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100002
+                  },
+                  {
+                    "fieldName": "status",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Game status",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100003
+                  },
+                  {
+                    "fieldName": "injury",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Injury",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100004
+                  },
+                  {
+                    "fieldName": "practice_status",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Practice",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100005
+                  },
+                  {
+                    "fieldName": "role",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Role",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "snap_pct",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Snap %",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100007
+                  },
+                  {
+                    "fieldName": "apy_m",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "APY $M",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.0",
+                    "order": 100008
+                  },
+                  {
+                    "fieldName": "week",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Week",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100009
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Injury report"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 11
+          }
+        },
+        {
+          "widget": {
+            "name": "inj_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gm_injury_league",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "club",
+                      "expression": "`club`"
+                    },
+                    {
+                      "name": "avg(starter_games_out)",
+                      "expression": "AVG(`starter_games_out`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "club",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  },
+                  "displayName": "Team"
+                },
+                "y": {
+                  "fieldName": "avg(starter_games_out)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Starter games out",
+                  "axis": {
+                    "title": "Starter games out"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "League: starter-games lost to injury this season"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 8
+          }
+        }
+      ]
+    },
+    {
+      "name": "filters",
+      "displayName": "Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layout": [
+        {
+          "widget": {
+            "name": "team_picker",
+            "queries": [
+              {
+                "name": "team_gm_summary",
+                "query": {
+                  "datasetName": "gm_summary",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_report_card",
+                "query": {
+                  "datasetName": "gm_report_card",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_percentiles",
+                "query": {
+                  "datasetName": "gm_percentiles",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_cap_allocation",
+                "query": {
+                  "datasetName": "gm_cap_allocation",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_roster_value",
+                "query": {
+                  "datasetName": "gm_roster_value",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_expiring",
+                "query": {
+                  "datasetName": "gm_expiring",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_personnel",
+                "query": {
+                  "datasetName": "gm_personnel",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_draft_classes",
+                "query": {
+                  "datasetName": "gm_draft_classes",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_draft_best_misses",
+                "query": {
+                  "datasetName": "gm_draft_best_misses",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "team_gm_injuries",
+                "query": {
+                  "datasetName": "gm_injuries",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "name": "team",
+                      "expression": "`team`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_summary"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_report_card"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_percentiles"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_cap_allocation"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_roster_value"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_expiring"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_personnel"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_draft_classes"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_draft_best_misses"
+                  },
+                  {
+                    "fieldName": "team",
+                    "displayName": "Team",
+                    "queryName": "team_gm_injuries"
+                  }
+                ]
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "NYG"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Your team"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
