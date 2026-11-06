@@ -30,17 +30,35 @@ DOWNLOAD = dbutils.widgets.get("download") == "true"
 LANDING = f"/Volumes/{CATALOG}/{SCHEMA}/landing/nfl"
 NFLVERSE = "https://github.com/nflverse/nflverse-data/releases/download"
 
-# dataset -> (url template, file name template, bronze table, seasonal?)
-# Seasonal datasets publish one file per season ({season} in the name); the others are one file for all
-# seasons and are re-landed every run.
+# dataset -> (url template, file name template, bronze table, first season)
+# Seasonal datasets (first season set) publish one file per season; the current season is re-landed every run.
+# Whole-file datasets (first season None) are one file covering all seasons and are re-landed every run.
 DATASETS = {
-    "pbp": (NFLVERSE + "/pbp/play_by_play_{season}.parquet", "play_by_play_{season}.parquet", "bronze_pbp", True),
+    # play-level and box scores
+    "pbp": (NFLVERSE + "/pbp/play_by_play_{season}.parquet", "play_by_play_{season}.parquet", "bronze_pbp", 1999),
     "player_week": (NFLVERSE + "/stats_player/stats_player_week_{season}.parquet", "stats_player_week_{season}.parquet",
-                    "bronze_player_week", True),
-    "games": (NFLVERSE + "/schedules/games.parquet", "games.parquet", "bronze_games", False),
-    "teams": (NFLVERSE + "/teams/teams_colors_logos.parquet", "teams_colors_logos.parquet", "bronze_teams", False),
-    "players": (NFLVERSE + "/players/players.parquet", "players.parquet", "bronze_players", False),
+                    "bronze_player_week", 1999),
+    "snap_counts": (NFLVERSE + "/snap_counts/snap_counts_{season}.parquet", "snap_counts_{season}.parquet", "bronze_snap_counts", 2012),
+    "injuries": (NFLVERSE + "/injuries/injuries_{season}.parquet", "injuries_{season}.parquet", "bronze_injuries", 2009),
+    "ftn_charting": (NFLVERSE + "/ftn_charting/ftn_charting_{season}.parquet", "ftn_charting_{season}.parquet", "bronze_ftn_charting", 2022),
+    # schedules and dimensions
+    "games": (NFLVERSE + "/schedules/games.parquet", "games.parquet", "bronze_games", None),
+    "teams": (NFLVERSE + "/teams/teams_colors_logos.parquet", "teams_colors_logos.parquet", "bronze_teams", None),
+    "players": (NFLVERSE + "/players/players.parquet", "players.parquet", "bronze_players", None),
+    # front office: contracts (OverTheCap), draft, combine
+    "contracts": (NFLVERSE + "/contracts/historical_contracts.parquet", "historical_contracts.parquet", "bronze_contracts", None),
+    "draft_picks": (NFLVERSE + "/draft_picks/draft_picks.parquet", "draft_picks.parquet", "bronze_draft_picks", None),
+    "combine": (NFLVERSE + "/combine/combine.parquet", "combine.parquet", "bronze_combine", None),
+    # advanced player stats: Next Gen Stats (2016+) and Pro Football Reference (2018+)
+    "ngs_passing": (NFLVERSE + "/nextgen_stats/ngs_passing.parquet", "ngs_passing.parquet", "bronze_ngs_passing", None),
+    "ngs_rushing": (NFLVERSE + "/nextgen_stats/ngs_rushing.parquet", "ngs_rushing.parquet", "bronze_ngs_rushing", None),
+    "ngs_receiving": (NFLVERSE + "/nextgen_stats/ngs_receiving.parquet", "ngs_receiving.parquet", "bronze_ngs_receiving", None),
+    "pfr_def": (NFLVERSE + "/pfr_advstats/advstats_season_def.parquet", "advstats_season_def.parquet", "bronze_pfr_def", None),
+    "pfr_pass": (NFLVERSE + "/pfr_advstats/advstats_season_pass.parquet", "advstats_season_pass.parquet", "bronze_pfr_pass", None),
+    "pfr_rush": (NFLVERSE + "/pfr_advstats/advstats_season_rush.parquet", "advstats_season_rush.parquet", "bronze_pfr_rush", None),
+    "pfr_rec": (NFLVERSE + "/pfr_advstats/advstats_season_rec.parquet", "advstats_season_rec.parquet", "bronze_pfr_rec", None),
 }
+
 
 # COMMAND ----------
 
@@ -112,12 +130,12 @@ print(f"seasons={seasons[0]}..{seasons[-1]} ({len(seasons)})  snapshot={snapshot
 download_failures = []
 if DOWNLOAD:
     targets = []
-    for ds, (url_t, name_t, _, seasonal) in DATASETS.items():
-        if not seasonal:
+    for ds, (url_t, name_t, _, first_season) in DATASETS.items():
+        if first_season is None:
             targets.append((url_t, f"{LANDING}/{ds}/snapshot={snapshot}/{name_t}"))
             continue
         already = {os.path.basename(p) for p in landed_files(ds)}
-        for season in seasons:
+        for season in (x for x in seasons if x >= first_season):
             name = name_t.format(season=season)
             # Finished seasons rarely change: land them once. The current season is re-landed every run.
             if season != current and name in already:
@@ -151,11 +169,14 @@ def apply_bronze_contract(df: DataFrame) -> DataFrame:
 
     nflverse column types drift between seasons (e.g. `goal_to_go` is INT in 2010 and DOUBLE in
     every other season), which breaks appends into one table. Bronze therefore stores every numeric
-    column as DOUBLE and every all-null column as STRING. Real types are applied in silver.
+    column as DOUBLE, every all-null column as STRING, and nested columns (structs, arrays, maps, e.g. the
+    contract history in the OverTheCap file) as JSON text. Real types are applied in silver.
     """
     cols = []
     for f in df.schema.fields:
-        if isinstance(f.dataType, T.NumericType):
+        if isinstance(f.dataType, (T.StructType, T.ArrayType, T.MapType)):
+            cols.append(F.to_json(F.col(f"`{f.name}`")).alias(f.name))
+        elif isinstance(f.dataType, T.NumericType):
             cols.append(F.col(f"`{f.name}`").cast("double").alias(f.name))
         elif isinstance(f.dataType, T.NullType):
             cols.append(F.col(f"`{f.name}`").cast("string").alias(f.name))

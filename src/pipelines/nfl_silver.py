@@ -20,7 +20,10 @@ BRONZE_GAMES = f"{CATALOG}.{SCHEMA}.bronze_games"
 # nflverse play-by-play uses each franchise's *current* code for every season (the 1999 Rams are LA),
 # but the schedules file uses the historical code (STL). Map schedules onto the play-by-play convention so
 # games join to plays; without this, ~50 team-seasons of STL/SD/OAK lose their record and per-game EPA.
-FRANCHISE_CODE = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
+# Other sources add PFR-style codes (GNB, KAN, ...) which map the same way; draft data is limited to 2000+,
+# where STL can only mean the Rams.
+FRANCHISE_CODE = {"STL": "LA", "SD": "LAC", "OAK": "LV", "LAR": "LA", "RAM": "LA", "RAI": "LV", "LVR": "LV",
+                  "SDG": "LAC", "GNB": "GB", "KAN": "KC", "NOR": "NO", "NWE": "NE", "SFO": "SF", "TAM": "TB"}
 
 
 def franchise(col: str):
@@ -78,6 +81,32 @@ def plays_typed():
         "wpa",
         "cpoe",
         "air_yards",
+        "yards_after_catch",
+        flag("qb_hit"),
+        flag("first_down"),
+        flag("third_down_converted"),
+        flag("third_down_failed"),
+        flag("fourth_down_converted"),
+        flag("fourth_down_failed"),
+        flag("goal_to_go"),
+        flag("shotgun"),
+        flag("no_huddle"),
+        F.col("fixed_drive").cast("int").alias("drive_id"),
+        F.col("fixed_drive_result").alias("drive_result"),
+        "penalty_team",
+        F.col("penalty_yards").cast("int").alias("penalty_yards"),
+        "pass_length",
+        "pass_location",
+        "run_location",
+        "run_gap",
+        "xpass",
+        "pass_oe",
+        "field_goal_result",
+        F.col("kick_distance").cast("int").alias("kick_distance"),
+        # defensive credit (gsis ids): who sacked / hit the QB, defended or intercepted the pass
+        "sack_player_id", "half_sack_1_player_id", "half_sack_2_player_id",
+        "qb_hit_1_player_id", "qb_hit_2_player_id",
+        "pass_defense_1_player_id", "pass_defense_2_player_id", "interception_player_id",
         # `id`/`name` = the dropback player (passer, or the QB on a scramble/sack)
         F.col("id").alias("dropback_player_id"),
         F.col("name").alias("dropback_player_name"),
@@ -203,6 +232,12 @@ def players_typed():
         F.col("draft_pick").cast("int").alias("draft_pick"),
         "latest_team",
         "status",
+        F.col("years_of_experience").cast("int").alias("years_of_experience"),
+        "jersey_number",
+        # crosswalk ids: PFR (snap counts, PFR advanced stats), OverTheCap (contracts), ESPN
+        "pfr_id",
+        F.col("otc_id").cast("string").alias("otc_id"),
+        "espn_id",
         "_snapshot_ts",
     )
 
@@ -260,3 +295,202 @@ dp.create_streaming_table(
 dp.create_auto_cdc_flow(target="silver_player_week", source="player_week_typed",
                         keys=["player_id", "season", "week", "season_type"],
                         sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
+
+
+# ================================================================ front-office and advanced datasets
+#
+# Seasonal feeds (snap counts, injuries, FTN charting) keep the AUTO CDC pattern. Whole-file feeds
+# (contracts, draft, combine, Next Gen Stats, PFR advanced) are re-published in full with no stable key,
+# so their silver tables are materialized views over the LATEST bronze snapshot: simple, and rows that
+# nflverse removes disappear too.
+
+def latest_snapshot(table: str):
+    df = spark.read.table(table)
+    newest = df.agg(F.max("_snapshot_ts").alias("_newest"))
+    return df.join(newest, F.col("_snapshot_ts") == F.col("_newest")).drop("_newest")
+
+
+def bronze(name: str) -> str:
+    return f"{CATALOG}.{SCHEMA}.bronze_{name}"
+
+
+# ---------------------------------------------------------------- snap counts (2012+)
+
+@dp.temporary_view()
+@dp.expect_or_drop("has_key", "pfr_player_id IS NOT NULL AND game_id IS NOT NULL")
+def snap_counts_typed():
+    return spark.readStream.table(bronze("snap_counts")).select(
+        "game_id", i("season"), "game_type", i("week"),
+        F.col("player").alias("player_name"), "pfr_player_id", "position",
+        franchise("team"), franchise("opponent"),
+        i("offense_snaps"), "offense_pct", i("defense_snaps"), "defense_pct", i("st_snaps"), "st_pct",
+        "_snapshot_ts",
+    )
+
+
+dp.create_streaming_table(name="silver_snap_counts",
+                          comment="One row per player per game, 2012+: offense / defense / special-teams snaps and snap share (PFR ids).",
+                          cluster_by=["season", "week"])
+dp.create_auto_cdc_flow(target="silver_snap_counts", source="snap_counts_typed", keys=["pfr_player_id", "game_id"],
+                        sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
+
+
+# ---------------------------------------------------------------- injury reports (2009+)
+
+@dp.temporary_view()
+@dp.expect_or_drop("has_key", "player_id IS NOT NULL AND season IS NOT NULL AND week IS NOT NULL AND team IS NOT NULL")
+def injuries_typed():
+    return spark.readStream.table(bronze("injuries")).select(
+        i("season"), "season_type", "game_type", franchise("team"), i("week"),
+        F.col("gsis_id").alias("player_id"), F.col("full_name").alias("player_name"), "position",
+        "report_status", "report_primary_injury", "report_secondary_injury",
+        "practice_status", "practice_primary_injury",
+        "_snapshot_ts",
+    )
+
+
+dp.create_streaming_table(name="silver_injuries",
+                          comment="Official weekly injury report, 2009+: game status (Out / Doubtful / Questionable), injury, practice participation.")
+dp.create_auto_cdc_flow(target="silver_injuries", source="injuries_typed",
+                        keys=["season", "week", "game_type", "team", "player_id"],
+                        sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
+
+
+# ---------------------------------------------------------------- FTN charting (2022+)
+
+FTN_FLAGS = ["is_no_huddle", "is_motion", "is_play_action", "is_screen_pass", "is_rpo", "is_trick_play",
+             "is_qb_out_of_pocket", "is_interception_worthy", "is_throw_away", "is_catchable_ball",
+             "is_contested_ball", "is_created_reception", "is_drop", "is_qb_sneak", "is_qb_fault_sack"]
+
+
+@dp.temporary_view()
+@dp.expect_or_drop("has_key", "game_id IS NOT NULL AND play_id IS NOT NULL")
+def ftn_typed():
+    return spark.readStream.table(bronze("ftn_charting")).select(
+        F.col("nflverse_game_id").alias("game_id"), F.col("nflverse_play_id").cast("bigint").alias("play_id"),
+        i("season"), i("week"), "qb_location",
+        i("n_offense_backfield"), i("n_defense_box"), i("n_blitzers"), i("n_pass_rushers"),
+        *[F.col(c).cast("boolean").alias(c) for c in FTN_FLAGS],
+        "_snapshot_ts",
+    )
+
+
+dp.create_streaming_table(name="silver_ftn_charting",
+                          comment="FTN charting per play, 2022+: play action, RPO, screens, motion, blitzers, pass rushers, box count, drops, catchable / contested balls. Joins silver_plays on (game_id, play_id).")
+dp.create_auto_cdc_flow(target="silver_ftn_charting", source="ftn_typed", keys=["game_id", "play_id"],
+                        sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
+
+
+# ---------------------------------------------------------------- contracts (OverTheCap)
+
+@dp.materialized_view(comment="Every NFL contract tracked by OverTheCap (latest snapshot). is_active = the player's current deal. "
+                              "APY = average annual value; apy_cap_pct = APY as a share of the salary cap in the signing year.")
+@dp.expect("has_player", "player_id IS NOT NULL")
+def silver_contracts():
+    return latest_snapshot(bronze("contracts")).select(
+        F.col("gsis_id").alias("player_id"), F.col("otc_id").cast("bigint").cast("string").alias("otc_id"),
+        F.col("player").alias("player_name"), "position", F.col("team").alias("team_raw"),
+        F.col("is_active").cast("boolean").alias("is_active"),
+        i("year_signed"), F.col("years").cast("int").alias("contract_years"),
+        (F.col("year_signed") + F.col("years") - 1).cast("int").alias("final_season"),
+        F.col("value").alias("total_value_m"), F.col("apy").alias("apy_m"), F.col("guaranteed").alias("guaranteed_m"),
+        "apy_cap_pct", F.col("inflated_apy").alias("inflated_apy_m"),
+        i("draft_year"), i("draft_round"), i("draft_overall"), F.col("draft_team").alias("draft_team_raw"),
+    )
+
+
+# ---------------------------------------------------------------- draft picks (2000+) and combine
+
+@dp.materialized_view(comment="Every draft pick since 2000 with career outcome: games, starts, Pro Bowls, All-Pros and PFR approximate value "
+                              "(w_av = weighted career AV, dr_av = AV earned for the drafting team).")
+@dp.expect_or_drop("modern_era", "draft_year >= 2000")
+def silver_draft_picks():
+    return latest_snapshot(bronze("draft_picks")).select(
+        i("season", "draft_year"), i("round"), i("pick"), franchise("team"),
+        F.col("gsis_id").alias("player_id"), "pfr_player_id", F.col("pfr_player_name").alias("player_name"),
+        "position", "category", "side", "college", i("age"),
+        F.col("to").cast("int").alias("last_season"),
+        F.col("hof").cast("boolean").alias("hall_of_fame"), i("allpro"), i("probowls"), i("seasons_started"),
+        i("w_av"), i("dr_av"), i("games"),
+    )
+
+
+@dp.materialized_view(comment="NFL Scouting Combine results, 2000+: 40-yard dash, bench, vertical, broad jump, 3-cone, shuttle.")
+def silver_combine():
+    return latest_snapshot(bronze("combine")).select(
+        i("season"), i("draft_year"), F.col("draft_team").alias("draft_team_name"), i("draft_round"), i("draft_ovr", "draft_overall"),
+        F.col("pfr_id").alias("pfr_player_id"), "player_name", F.col("pos").alias("position"), F.col("school").alias("college"),
+        F.col("ht").alias("height"), F.col("wt").cast("int").alias("weight_lb"),
+        "forty", i("bench"), "vertical", i("broad_jump"), "cone", "shuttle",
+    )
+
+
+# ---------------------------------------------------------------- Next Gen Stats (2016+), week 0 = season
+
+def ngs(kind: str, *cols):
+    return latest_snapshot(bronze(f"ngs_{kind}")).select(
+        i("season"), "season_type", i("week"), F.col("player_gsis_id").alias("player_id"),
+        F.col("player_display_name").alias("player_name"), F.col("player_position").alias("position"),
+        franchise("team_abbr").alias("team"), *cols)
+
+
+@dp.materialized_view(comment="Next Gen Stats passing by player-week (week 0 = full season): time to throw, aggressiveness, air yards, CPOE.")
+def silver_ngs_passing():
+    return ngs("passing", "avg_time_to_throw", "aggressiveness", "avg_intended_air_yards", "avg_completed_air_yards",
+               "avg_air_yards_to_sticks", "completion_percentage", "expected_completion_percentage",
+               "completion_percentage_above_expectation", "passer_rating", i("attempts"), i("pass_yards"))
+
+
+@dp.materialized_view(comment="Next Gen Stats rushing by player-week (week 0 = full season): rush yards over expected (RYOE), stacked boxes, time to line.")
+def silver_ngs_rushing():
+    return ngs("rushing", i("rush_attempts"), i("rush_yards"), "expected_rush_yards", "rush_yards_over_expected",
+               "rush_yards_over_expected_per_att", "rush_pct_over_expected", "percent_attempts_gte_eight_defenders",
+               "avg_time_to_los", "efficiency")
+
+
+@dp.materialized_view(comment="Next Gen Stats receiving by player-week (week 0 = full season): separation, cushion, YAC over expected, share of team air yards.")
+def silver_ngs_receiving():
+    return ngs("receiving", i("targets"), i("receptions"), i("yards"), "avg_separation", "avg_cushion",
+               "avg_intended_air_yards", "percent_share_of_intended_air_yards", "catch_percentage",
+               "avg_yac", "avg_expected_yac", "avg_yac_above_expectation")
+
+
+# ---------------------------------------------------------------- Pro Football Reference advanced (2018+, season level)
+
+def pfr(kind: str, team_col: str, *cols):
+    return latest_snapshot(bronze(f"pfr_{kind}")).select(
+        i("season"), F.col("pfr_id").alias("pfr_player_id"), F.col("player").alias("player_name"),
+        franchise(team_col).alias("team"), *cols)
+
+
+@dp.materialized_view(comment="PFR advanced defense per player-season: pressures, hurries, QB knockdowns, sacks, blitzes, missed tackles, "
+                              "and coverage allowed (targets, completions, yards, TDs, passer rating). team = '2TM'/'3TM' for multi-team seasons.")
+def silver_pfr_defense():
+    return pfr("def", "tm", F.col("pos").alias("position"), i("g", "games"), i("gs", "games_started"),
+               i("prss", "pressures"), i("hrry", "hurries"), i("qbkd", "qb_knockdowns"), F.col("sk").alias("sacks"),
+               i("bltz", "blitzes"), i("comb", "tackles"), i("m_tkl", "missed_tackles"),
+               F.col("m_tkl_percent").alias("missed_tackle_pct"),
+               i("tgt", "targets_allowed"), i("cmp", "completions_allowed"), F.col("cmp_percent").alias("completion_pct_allowed"),
+               i("yds", "yards_allowed"), i("td", "tds_allowed"), i("int", "interceptions"),
+               F.col("rat").alias("passer_rating_allowed"), F.col("dadot").alias("adot_allowed"))
+
+
+@dp.materialized_view(comment="PFR advanced passing per QB-season: pressure rate, time in pocket, bad throws, drops, play action, RPO, scrambles.")
+def silver_pfr_passing():
+    return pfr("pass", "team", i("pass_attempts"), i("times_pressured"), "pressure_pct", "pocket_time",
+               i("times_blitzed"), i("times_hurried"), i("times_hit"), "bad_throw_pct", "on_tgt_pct", "drop_pct",
+               i("pa_pass_att", "play_action_attempts"), i("pa_pass_yards", "play_action_yards"),
+               i("rpo_plays"), i("scrambles"))
+
+
+@dp.materialized_view(comment="PFR advanced rushing per player-season: yards before / after contact, broken tackles.")
+def silver_pfr_rushing():
+    return pfr("rush", "tm", F.col("pos").alias("position"), i("att", "attempts"), i("yds", "yards"),
+               "ybc_att", "yac_att", i("brk_tkl", "broken_tackles"), "att_br")
+
+
+@dp.materialized_view(comment="PFR advanced receiving per player-season: drops, broken tackles, aDOT, yards after catch, passer rating when targeted.")
+def silver_pfr_receiving():
+    return pfr("rec", "tm", F.col("pos").alias("position"), i("tgt", "targets"), i("rec", "receptions"), i("yds", "yards"),
+               "adot", "yac_r", i("brk_tkl", "broken_tackles"), i("drop", "drops"), F.col("drop_percent").alias("drop_pct"),
+               F.col("rat").alias("passer_rating_when_targeted"))

@@ -13,4 +13,12 @@ for y in 1999 2026; do
 done
 curl -fsSL -o "$OUT/teams_colors_logos.parquet" "$BASE/teams/teams_colors_logos.parquet"
 curl -fsSL -o "$OUT/players.parquet" "$BASE/players/players.parquet"
+# front-office / advanced samples
+for f in snap_counts/snap_counts_2015 snap_counts/snap_counts_2026 injuries/injuries_2012 injuries/injuries_2026 \
+         ftn_charting/ftn_charting_2022 ftn_charting/ftn_charting_2026 contracts/historical_contracts \
+         draft_picks/draft_picks combine/combine nextgen_stats/ngs_passing nextgen_stats/ngs_rushing \
+         nextgen_stats/ngs_receiving pfr_advstats/advstats_season_def pfr_advstats/advstats_season_pass \
+         pfr_advstats/advstats_season_rush pfr_advstats/advstats_season_rec; do
+  curl -fsSL -o "$OUT/$(basename "$f").parquet" "$BASE/$f.parquet"
+done
 ls -la "$OUT"

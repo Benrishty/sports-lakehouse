@@ -29,9 +29,17 @@ land() {  # land <release path> <dataset dir>
 for season in $(seq "$FIRST" "$LAST"); do
   land "pbp/play_by_play_${season}.parquet" pbp
   land "stats_player/stats_player_week_${season}.parquet" player_week
+  [ "$season" -ge 2012 ] && land "snap_counts/snap_counts_${season}.parquet" snap_counts
+  [ "$season" -ge 2009 ] && land "injuries/injuries_${season}.parquet" injuries
+  [ "$season" -ge 2022 ] && land "ftn_charting/ftn_charting_${season}.parquet" ftn_charting
 done
 land schedules/games.parquet games
 land teams/teams_colors_logos.parquet teams
 land players/players.parquet players
+land contracts/historical_contracts.parquet contracts
+land draft_picks/draft_picks.parquet draft_picks
+land combine/combine.parquet combine
+for k in passing rushing receiving; do land "nextgen_stats/ngs_${k}.parquet" "ngs_${k}"; done
+for k in def pass rush rec; do land "pfr_advstats/advstats_season_${k}.parquet" "pfr_${k}"; done
 
 echo "Landed snapshot ${SNAP}. Now run the nfl_ingest notebook with download=false."

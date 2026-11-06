@@ -60,10 +60,25 @@ def bronze_file(name: str, ds: str):
     return ns["apply_bronze_contract"](spark.read.parquet(str(DATA / name))) \
         .withColumn("_snapshot_ts", F.lit(ns["snapshot_ts"](p)).cast("timestamp"))
 
-bronze_teams = bronze_file("teams_colors_logos.parquet", "teams")
-bronze_players = bronze_file("players.parquet", "players")
-bronze_player_week = bronze_file("stats_player_week_1999.parquet", "player_week").unionByName(
-    bronze_file("stats_player_week_2026.parquet", "player_week"))
+# every other bronze table: sample files per dataset (seasonal datasets get an old and a current season)
+BRONZE_FILES = {
+    "teams": ["teams_colors_logos.parquet"], "players": ["players.parquet"],
+    "player_week": ["stats_player_week_1999.parquet", "stats_player_week_2026.parquet"],
+    "snap_counts": ["snap_counts_2015.parquet", "snap_counts_2026.parquet"],
+    "injuries": ["injuries_2012.parquet", "injuries_2026.parquet"],
+    "ftn_charting": ["ftn_charting_2022.parquet", "ftn_charting_2026.parquet"],
+    "contracts": ["historical_contracts.parquet"], "draft_picks": ["draft_picks.parquet"], "combine": ["combine.parquet"],
+    "ngs_passing": ["ngs_passing.parquet"], "ngs_rushing": ["ngs_rushing.parquet"], "ngs_receiving": ["ngs_receiving.parquet"],
+    "pfr_def": ["advstats_season_def.parquet"], "pfr_pass": ["advstats_season_pass.parquet"],
+    "pfr_rush": ["advstats_season_rush.parquet"], "pfr_rec": ["advstats_season_rec.parquet"],
+}
+BRONZE = {"x.y.bronze_pbp": bronze_pbp, "x.y.bronze_games": bronze_games}
+for ds, files in BRONZE_FILES.items():
+    df = None
+    for f in files:
+        part = bronze_file(f, ds)
+        df = part if df is None else df.unionByName(part, allowMissingColumns=True)
+    BRONZE[f"x.y.bronze_{ds}"] = df
 print("bronze_pbp rows", bronze_pbp.count())
 
 # ---- silver: exec the pipeline file with a stub dp module
@@ -78,7 +93,12 @@ def expect_factory(kind):
             expects.setdefault(f.__name__, []).append((kind, name, cond)); return f
         return deco
     return expect
-dp = types.SimpleNamespace(temporary_view=temporary_view, expect=expect_factory("warn"),
+mvs = []
+def materialized_view(fn=None, **kw):
+    def deco(f):
+        mvs.append(f); return f
+    return deco(fn) if fn else deco
+dp = types.SimpleNamespace(temporary_view=temporary_view, materialized_view=materialized_view, expect=expect_factory("warn"),
     expect_or_drop=expect_factory("drop"), create_streaming_table=lambda **kw: None,
     create_auto_cdc_flow=lambda **kw: cdc.append(kw))
 fake_pkg = types.ModuleType("pyspark_stub"); fake_pkg.pipelines = dp
@@ -88,8 +108,8 @@ class StubSpark:
     class readStream:  # noqa: N801
         @staticmethod
         def table(name):
-            return {"x.y.bronze_pbp": bronze_pbp, "x.y.bronze_games": bronze_games, "x.y.bronze_teams": bronze_teams,
-                    "x.y.bronze_players": bronze_players, "x.y.bronze_player_week": bronze_player_week}[name]
+            return BRONZE[name]
+    read = readStream
 
 silver_src = (PROJ / "src/pipelines/nfl_silver.py").read_text().replace(
     "from pyspark import pipelines as dp", "dp = __dp__")
@@ -107,6 +127,15 @@ for flow in cdc:
     out.createOrReplaceTempView(flow["target"])
     print(flow["target"], out.count())
 
+for f in mvs:  # silver materialized views (latest-snapshot feeds); expectations applied like the pipeline does
+    df = f()
+    for kind, name, cond in expects.get(f.__name__, []):
+        bad = df.where(f"NOT ({cond})").count()
+        print(f"  expectation {f.__name__}.{name} [{kind}] violations={bad}")
+        if kind == "drop": df = df.where(cond)
+    df.createOrReplaceTempView(f.__name__)
+    print(f.__name__, df.count())
+
 # dedup check: latest snapshot wins
 v = spark.sql(f"select epa from silver_plays where game_id='{first_key.game_id}' and play_id={int(first_key.play_id)}").collect()
 assert len(v) == 1 and abs(v[0].epa - 9.99) < 1e-9, v
@@ -114,7 +143,7 @@ n26 = spark.sql("select count(*) c from silver_plays where season=2026").first()
 assert n26 == spark.read.parquet(str(DATA / "play_by_play_2026.parquet")).count(), n26
 
 # ---- gold
-gold = (PROJ / "src/pipelines/nfl_gold.sql").read_text()
+gold = "\n;\n".join((PROJ / f"src/pipelines/{f}").read_text() for f in ("nfl_gold.sql", "nfl_gold_gm.sql"))
 gold = "\n".join(l for l in gold.splitlines() if not l.strip().startswith("--"))
 for stmt in [s.strip() for s in gold.split(";") if s.strip()]:
     m = re.match(r'CREATE OR REFRESH MATERIALIZED VIEW (\w+)\s+COMMENT "[^"]*"\s+AS\s+(.*)', stmt, re.S)
