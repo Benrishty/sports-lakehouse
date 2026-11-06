@@ -38,6 +38,7 @@ flowchart LR
 | Gold | `gold_team_season` | team × season: record, ATS record, EPA ranks | `src/pipelines/nfl_gold.sql` |
 | Gold | `gold_qb_season` | QB × season: EPA/dropback, CPOE | `src/pipelines/nfl_gold.sql` |
 | Serve | NFL Efficiency dashboard | offense vs. defense, lucky-or-good, QB leaders, team trend | `src/dashboards/nfl_efficiency.lvdash.json` |
+| Serve | NFL Efficiency Genie space | natural-language Q&A over gold + plays, with governed definitions and tested example SQL | `genie/`, `scripts/build_genie_space.py` |
 
 ## Running on Databricks
 
@@ -70,6 +71,13 @@ so the pipeline never refreshes on top of a silent miss.
 
 **Data quality as code.** Pipeline expectations drop plays with no key or an unknown season type,
 and track out-of-range EPA and downs as warnings, visible in the pipeline event log.
+
+**Metrics are defined once, in gold.** Testing the Genie space showed it flipping the sign when it derived
+"luck" itself (it called the unluckiest teams the luckiest). `luck_gap` and `record_rank` now live in
+`gold_team_season`, and the dashboard and Genie both read the same column. Testing Genie's example SQL
+also turned up a join bug: play-by-play uses each franchise's current code for every season (the 1999
+Rams are `LA`), while schedules use the historical one (`STL`), so about 50 team-seasons had no record. Silver now
+maps both onto one franchise code, and the e2e test checks for it.
 
 **Tested off-platform.** `tests/local_e2e.py` runs the real bronze contract, silver selects and
 gold SQL on OSS Spark against real seasons. It checks schema unification across 1999–2026,

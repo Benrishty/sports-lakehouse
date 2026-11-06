@@ -142,7 +142,7 @@ databricks bundle generate dashboard --existing-path "/Users/<you>/NFL Efficienc
 
 Commit the generated `resources/*.yml` and `src/*.lvdash.json`.
 
-**Genie space** (Genie → New): add the three gold tables, plus instructions such as *"EPA = expected
+**Genie space**: defined in `genie/` and created with `python scripts/build_genie_space.py && ./scripts/deploy_genie.sh` (it updates in place after the first run). It was originally set up in the UI (Genie → New): add the three gold tables, plus instructions such as *"EPA = expected
 points added per play; higher offense is better, lower defense is better. Seasons are labelled by
 start year. Regular season unless asked."* Then ask it things like *"Which teams have a winning
 record but negative net EPA this year?"* A screen recording of that is a strong portfolio asset,
