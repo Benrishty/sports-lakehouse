@@ -30,14 +30,19 @@ flowchart LR
 
 | Layer | Object | Grain | Built by |
 |---|---|---|---|
-| Landing | `landing` volume | one file per season per snapshot | `src/ingest/nfl_ingest.py` |
-| Bronze | `bronze_pbp`, `bronze_games` | every row of every snapshot | `src/ingest/nfl_ingest.py` |
+| Landing | `landing` volume | one file per dataset (per season where seasonal) per snapshot | `src/ingest/nfl_ingest.py` |
+| Bronze | `bronze_pbp`, `bronze_games`, `bronze_player_week`, `bronze_players`, `bronze_teams` | every row of every snapshot | `src/ingest/nfl_ingest.py` |
 | Silver | `silver_plays` | one row per play (latest version) | `src/pipelines/nfl_silver.py` |
-| Silver | `silver_games` | one row per game, with closing spread and total | `src/pipelines/nfl_silver.py` |
-| Gold | `gold_team_games` | team × game: margin vs. spread, EPA/play | `src/pipelines/nfl_gold.sql` |
-| Gold | `gold_team_season` | team × season: record, ATS record, EPA ranks | `src/pipelines/nfl_gold.sql` |
-| Gold | `gold_qb_season` | QB × season: EPA/dropback, CPOE | `src/pipelines/nfl_gold.sql` |
-| Serve | NFL Efficiency dashboard | offense vs. defense, lucky-or-good, QB leaders, team trend | `src/dashboards/nfl_efficiency.lvdash.json` |
+| Silver | `silver_games` | one row per game, with closing spread and total, franchise-normalized team codes | `src/pipelines/nfl_silver.py` |
+| Silver | `silver_player_week` | one row per player per week: passing, rushing, receiving, defense, kicking, fantasy | `src/pipelines/nfl_silver.py` |
+| Silver | `silver_players`, `silver_teams` | dimensions: full names, positions, headshots; team names, conference, division, logos | `src/pipelines/nfl_silver.py` |
+| Gold | `gold_team_games` | team × game: margin vs. spread, total vs. over/under, favorite/underdog, EPA/play | `src/pipelines/nfl_gold.sql` |
+| Gold | `gold_team_season` | team × season: record, conference/division, EPA ranks, `luck_gap` | `src/pipelines/nfl_gold.sql` |
+| Gold | `gold_standings` | team × season (2002+): division rank, games back, approximate playoff seed | `src/pipelines/nfl_gold.sql` |
+| Gold | `gold_team_betting` | team × season: ATS overall / as favorite / as underdog / home / away, over-under record | `src/pipelines/nfl_gold.sql` |
+| Gold | `gold_qb_season` | QB × season: EPA/dropback, CPOE, full name, headshot | `src/pipelines/nfl_gold.sql` |
+| Gold | `gold_player_season` | player × season: box-score totals, EPA, PPR fantasy rank, headshot | `src/pipelines/nfl_gold.sql` |
+| Serve | NFL Efficiency dashboard | 3 pages: efficiency (logo scatter, lucky-or-good), player leaders with headshots, betting records | `src/dashboards/nfl_efficiency.lvdash.json` |
 | Serve | NFL Efficiency Genie space | natural-language Q&A over gold + plays, with governed definitions and tested example SQL | `genie/`, `scripts/build_genie_space.py` |
 
 ## Running on Databricks
