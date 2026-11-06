@@ -15,6 +15,18 @@
         ]
       },
       {
+        "id": "7fd6fd2ff1225370849a8820a74c1217",
+        "question": [
+          "What does the NFC playoff picture look like right now?"
+        ]
+      },
+      {
+        "id": "998e36bef5ca585b975d34fde5880e0e",
+        "question": [
+          "Who leads the league in receiving yards this season?"
+        ]
+      },
+      {
         "id": "c94b295da77e58379a93571cce586607",
         "question": [
           "Which teams have the best record against the spread this season?"
@@ -30,6 +42,83 @@
   },
   "data_sources": {
     "tables": [
+      {
+        "identifier": "workspace.nfl.gold_player_season",
+        "description": [
+          "One row per player per regular season, 1999 to today: full name, position, team, headshot, passing / rushing / receiving / defensive / kicking totals, EPA and PPR fantasy points."
+        ],
+        "column_configs": [
+          {
+            "column_name": "fantasy_points_ppr",
+            "description": [
+              "PPR fantasy points."
+            ],
+            "synonyms": [
+              "fantasy points"
+            ]
+          },
+          {
+            "column_name": "fantasy_rank_in_position",
+            "description": [
+              "Rank by PPR fantasy points within position group and season."
+            ]
+          },
+          {
+            "column_name": "headshot_url",
+            "description": [
+              "Player headshot image URL."
+            ]
+          },
+          {
+            "column_name": "latest_team",
+            "description": [
+              "Team the player played for most recently that season (franchise code)."
+            ],
+            "synonyms": [
+              "team"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name, e.g. 'Jaxson Dart'. Use exactly as stored."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "position",
+            "description": [
+              "e.g. QB, RB, WR, TE, LB, CB, K."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "position_group",
+            "description": [
+              "e.g. QB, RB, WR, TE, DL, LB, DB, SPEC."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          }
+        ]
+      },
       {
         "identifier": "workspace.nfl.gold_qb_season",
         "description": [
@@ -62,6 +151,12 @@
             ]
           },
           {
+            "column_name": "headshot_url",
+            "description": [
+              "Player headshot image URL."
+            ]
+          },
+          {
             "column_name": "latest_team",
             "description": [
               "Team the QB played for most recently that season."
@@ -75,7 +170,7 @@
           {
             "column_name": "player_name",
             "description": [
-              "Quarterback name as abbreviated by nflverse, e.g. 'J.Allen', 'L.Jackson'."
+              "Quarterback full name, e.g. 'Josh Allen'. Use exactly as stored."
             ],
             "synonyms": [
               "quarterback",
@@ -86,12 +181,231 @@
             "enable_entity_matching": true
           },
           {
+            "column_name": "player_short_name",
+            "description": [
+              "Abbreviated name as in play-by-play, e.g. 'J.Allen'."
+            ]
+          },
+          {
             "column_name": "season",
             "description": [
               "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
             ],
             "synonyms": [
               "year"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_standings",
+        "description": [
+          "Standings per team per regular season since 2002: division rank, division leader, games back and an APPROXIMATE conference seed (division leaders seeds 1-4, then wild cards; ties broken by point differential, not official NFL tiebreakers). Use for every playoff / seeding / standings question."
+        ],
+        "column_configs": [
+          {
+            "column_name": "conference",
+            "description": [
+              "AFC or NFC."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "conference_seed",
+            "description": [
+              "Approximate playoff seed within the conference if the season ended today (1 = best)."
+            ],
+            "synonyms": [
+              "seed",
+              "playoff seed"
+            ]
+          },
+          {
+            "column_name": "division",
+            "description": [
+              "e.g. 'NFC East'."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "division_games_back",
+            "description": [
+              "Games behind the division leader."
+            ],
+            "synonyms": [
+              "games back",
+              "GB"
+            ]
+          },
+          {
+            "column_name": "division_leader",
+            "description": [
+              "True if the team currently leads its division (would host a playoff game as a top-4 seed)."
+            ],
+            "synonyms": [
+              "division winner",
+              "division lead"
+            ]
+          },
+          {
+            "column_name": "division_rank",
+            "description": [
+              "Rank within the division (1 = leader)."
+            ]
+          },
+          {
+            "column_name": "in_playoff_position",
+            "description": [
+              "True if conference_seed is within the playoff field (7 teams per conference from 2020, 6 before)."
+            ],
+            "synonyms": [
+              "in the playoffs",
+              "playoff spot"
+            ]
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis; LAC = Chargers incl. San Diego; LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "win_pct",
+            "description": [
+              "(wins + 0.5 * ties) / games."
+            ],
+            "synonyms": [
+              "winning percentage"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_team_betting",
+        "description": [
+          "Betting records per team per regular season from closing lines: against the spread (overall, as favorite, as underdog, home, away) and over/under."
+        ],
+        "column_configs": [
+          {
+            "column_name": "ats_cover_pct",
+            "description": [
+              "Covers / (covers + ATS losses), pushes excluded."
+            ],
+            "synonyms": [
+              "cover rate",
+              "ATS percentage"
+            ]
+          },
+          {
+            "column_name": "ats_covers",
+            "description": [
+              "Games the team beat the closing spread."
+            ],
+            "synonyms": [
+              "covers",
+              "ATS wins"
+            ]
+          },
+          {
+            "column_name": "ats_losses",
+            "description": [
+              "Games the team failed to cover."
+            ],
+            "synonyms": [
+              "ATS losses"
+            ]
+          },
+          {
+            "column_name": "avg_total_vs_line",
+            "description": [
+              "Average (total points - closing total). Positive = games go over on average."
+            ]
+          },
+          {
+            "column_name": "favorite_covers",
+            "description": [
+              "Covers when favored."
+            ]
+          },
+          {
+            "column_name": "outright_underdog_wins",
+            "description": [
+              "Straight-up wins as the underdog."
+            ],
+            "synonyms": [
+              "upsets"
+            ]
+          },
+          {
+            "column_name": "over_pct",
+            "description": [
+              "Overs / (overs + unders), pushes excluded."
+            ],
+            "synonyms": [
+              "over rate",
+              "O/U"
+            ]
+          },
+          {
+            "column_name": "overs",
+            "description": [
+              "Games where total points went over the closing total."
+            ],
+            "synonyms": [
+              "over"
+            ]
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis; LAC = Chargers incl. San Diego; LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "underdog_covers",
+            "description": [
+              "Covers when the underdog."
+            ]
+          },
+          {
+            "column_name": "unders",
+            "description": [
+              "Games where total points stayed under the closing total."
+            ],
+            "synonyms": [
+              "under"
             ]
           }
         ]
@@ -201,7 +515,7 @@
       {
         "identifier": "workspace.nfl.gold_team_season",
         "description": [
-          "One row per team per regular season: record, record against the spread, play-weighted EPA efficiency and league ranks."
+          "One row per team per regular season: team name, conference, division, record, record against the spread, play-weighted EPA efficiency and league ranks."
         ],
         "column_configs": [
           {
@@ -214,6 +528,14 @@
             ]
           },
           {
+            "column_name": "conference",
+            "description": [
+              "AFC or NFC."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
             "column_name": "def_epa_per_play",
             "description": [
               "EPA per play allowed on defense. LOWER is better."
@@ -222,6 +544,14 @@
               "defense",
               "defensive efficiency"
             ]
+          },
+          {
+            "column_name": "division",
+            "description": [
+              "e.g. 'NFC East' (current alignment; valid from 2002)."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
           },
           {
             "column_name": "luck_gap",
@@ -294,6 +624,81 @@
             "synonyms": [
               "club",
               "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "team_name",
+            "description": [
+              "Full team name, e.g. 'New York Giants'."
+            ],
+            "synonyms": [
+              "team name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.silver_player_week",
+        "description": [
+          "One row per player per game week (REG and POST): box-score stats by week. Use for week-by-week player questions, e.g. who played QB for a team in which weeks."
+        ],
+        "column_configs": [
+          {
+            "column_name": "_snapshot_ts",
+            "exclude": true
+          },
+          {
+            "column_name": "opponent",
+            "description": [
+              "Opponent that week (franchise code)."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name."
+            ],
+            "synonyms": [
+              "player"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "position",
+            "description": [
+              "Position."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "season_type",
+            "description": [
+              "REG or POST."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Player's team that week (franchise code)."
             ],
             "enable_format_assistance": true,
             "enable_entity_matching": true
@@ -418,7 +823,13 @@
           "Against the spread: cover_margin = margin - expected_margin; a positive cover_margin means the team beat the closing line.",
           "Luck: use the luck_gap column in gold_team_season, never recompute it. luck_gap = net_epa_rank - record_rank. UNLUCKY = most NEGATIVE luck_gap (plays better than its record): ORDER BY luck_gap ASC. LUCKY = most POSITIVE luck_gap (record better than its play): ORDER BY luck_gap DESC.",
           "Passing touchdowns: is_pass = 1 AND touchdown = 1 AND interception = 0 AND fumble_lost = 0. The touchdown flag alone also counts pick-sixes and fumble returns scored by the defense.",
-          "Round EPA values to 3 decimals and percentages to 1 decimal. Player names are abbreviated nflverse-style (first initial + last name)."
+          "Player names: use player_name exactly as stored (full names in gold_player_season, gold_qb_season, silver_player_week). Play-by-play names are abbreviated ('J.Dart'): NEVER expand an initial into a first name yourself; look the full name up in gold_player_season by player_id, or keep the abbreviation.",
+          "Only state what the data shows. The data has no injury, trade, suspension or coaching information: if a player stops appearing, say 'has not played since week N' instead of giving a reason.",
+          "Describe league ranks out of 32 teams honestly: 1-8 = top tier, 9-16 = above average, 17-24 = below average, 25-32 = bottom tier. Never call a rank in the teens 'elite' or 'poor'.",
+          "Playoffs, seeds, standings and 'would they make the playoffs': ALWAYS use gold_standings (division leaders take seeds 1-4 even with a worse record than wild cards). Mention that tiebreakers are approximated by point differential.",
+          "'Playing above expectation' / 'overperforming' = record better than play = POSITIVE luck_gap. 'Below expectation' = NEGATIVE luck_gap. Answer the question yes/no consistently with the sign.",
+          "Betting questions (ATS, covers, over/under, favorites, underdogs) use gold_team_betting for season records and gold_team_games for individual games.",
+          "Round EPA values to 3 decimals and percentages to 1 decimal."
         ]
       }
     ],
@@ -430,6 +841,15 @@
         ],
         "sql": [
           "SELECT gold_qb_season.player_name, gold_qb_season.latest_team, gold_qb_season.dropbacks, ROUND(gold_qb_season.epa_per_dropback, 3) AS epa_per_dropback, ROUND(gold_qb_season.cpoe, 1) AS cpoe\nFROM workspace.nfl.gold_qb_season\nWHERE gold_qb_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_qb_season)\nORDER BY gold_qb_season.epa_per_dropback DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "5430949f9ae05db0a8772fa6df410b8f",
+        "question": [
+          "Which quarterbacks have played for the Giants this season, and in which weeks?"
+        ],
+        "sql": [
+          "SELECT silver_player_week.player_name, MIN(silver_player_week.week) AS first_week, MAX(silver_player_week.week) AS last_week, COUNT(*) AS games, SUM(silver_player_week.attempts) AS attempts, SUM(silver_player_week.passing_yards) AS passing_yards, SUM(silver_player_week.passing_tds) AS passing_tds, SUM(silver_player_week.passing_interceptions) AS interceptions, ROUND(SUM(silver_player_week.passing_epa), 1) AS passing_epa\nFROM workspace.nfl.silver_player_week\nWHERE silver_player_week.season = (SELECT MAX(season) FROM workspace.nfl.silver_player_week)\n  AND silver_player_week.season_type = 'REG' AND silver_player_week.team = 'NYG'\n  AND silver_player_week.position = 'QB' AND silver_player_week.attempts > 0\nGROUP BY silver_player_week.player_name\nORDER BY first_week"
         ]
       },
       {
@@ -448,6 +868,24 @@
         ],
         "sql": [
           "SELECT silver_plays.week, silver_plays.posteam AS team, silver_plays.defteam AS opponent, silver_plays.passer_player_name, silver_plays.receiver_player_name, silver_plays.yards_gained\nFROM workspace.nfl.silver_plays\nWHERE silver_plays.season = (SELECT MAX(season) FROM workspace.nfl.silver_plays)\n  AND silver_plays.season_type = 'REG'\n  AND silver_plays.is_pass = 1 AND silver_plays.touchdown = 1\n  AND silver_plays.interception = 0 AND silver_plays.fumble_lost = 0\nORDER BY silver_plays.yards_gained DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "7ec116a17aaf538cb72c6c01a0c8db0b",
+        "question": [
+          "Who leads the league in receiving yards this season?"
+        ],
+        "sql": [
+          "SELECT gold_player_season.player_name, gold_player_season.position, gold_player_season.latest_team, gold_player_season.games, gold_player_season.targets, gold_player_season.receptions, gold_player_season.receiving_yards, gold_player_season.receiving_tds\nFROM workspace.nfl.gold_player_season\nWHERE gold_player_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_season)\nORDER BY gold_player_season.receiving_yards DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "9e646952cf025d8490905dfb0c0924c4",
+        "question": [
+          "What does the NFC playoff picture look like right now?"
+        ],
+        "sql": [
+          "SELECT gold_standings.conference_seed, gold_standings.team, gold_standings.team_name, gold_standings.division, gold_standings.wins, gold_standings.losses, gold_standings.ties, gold_standings.division_leader, gold_standings.division_games_back, gold_standings.in_playoff_position\nFROM workspace.nfl.gold_standings\nWHERE gold_standings.season = (SELECT MAX(season) FROM workspace.nfl.gold_standings)\n  AND gold_standings.conference = 'NFC'\nORDER BY gold_standings.conference_seed"
         ]
       },
       {
@@ -478,6 +916,15 @@
         ]
       },
       {
+        "id": "d76aab7d5a7553fbbd63aeab0e201ac3",
+        "question": [
+          "Which teams have gone over the total most often this season?"
+        ],
+        "sql": [
+          "SELECT gold_team_betting.team, gold_team_betting.overs, gold_team_betting.unders, gold_team_betting.ou_pushes, ROUND(100 * gold_team_betting.over_pct, 1) AS over_pct, ROUND(gold_team_betting.avg_total_vs_line, 1) AS avg_total_vs_line\nFROM workspace.nfl.gold_team_betting\nWHERE gold_team_betting.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_betting)\nORDER BY gold_team_betting.over_pct DESC, gold_team_betting.avg_total_vs_line DESC\nLIMIT 10"
+        ]
+      },
+      {
         "id": "dcac833d306e50ac99e54317ec90703a",
         "question": [
           "How has the Rams' net EPA trended game by game this season?"
@@ -498,7 +945,7 @@
     ],
     "join_specs": [
       {
-        "id": "28c55b7b7dea573f9eb4463e213fb857",
+        "id": "82ab717d7249568690563009ad23d5db",
         "left": {
           "identifier": "workspace.nfl.gold_team_games",
           "alias": "gold_team_games"
@@ -510,6 +957,36 @@
         "sql": [
           "`gold_team_games`.`season` = `gold_team_season`.`season` AND `gold_team_games`.`team` = `gold_team_season`.`team`",
           "--rt=FROM_RELATIONSHIP_TYPE_MANY_TO_ONE--"
+        ]
+      },
+      {
+        "id": "9fd2ea684aff5054bc5c4a9b00ece034",
+        "left": {
+          "identifier": "workspace.nfl.gold_team_betting",
+          "alias": "gold_team_betting"
+        },
+        "right": {
+          "identifier": "workspace.nfl.gold_team_season",
+          "alias": "gold_team_season"
+        },
+        "sql": [
+          "`gold_team_betting`.`season` = `gold_team_season`.`season` AND `gold_team_betting`.`team` = `gold_team_season`.`team`",
+          "--rt=FROM_RELATIONSHIP_TYPE_ONE_TO_ONE--"
+        ]
+      },
+      {
+        "id": "d47a9215948c5e20a11ba94c424c6ddf",
+        "left": {
+          "identifier": "workspace.nfl.gold_standings",
+          "alias": "gold_standings"
+        },
+        "right": {
+          "identifier": "workspace.nfl.gold_team_season",
+          "alias": "gold_team_season"
+        },
+        "sql": [
+          "`gold_standings`.`season` = `gold_team_season`.`season` AND `gold_standings`.`team` = `gold_team_season`.`team`",
+          "--rt=FROM_RELATIONSHIP_TYPE_ONE_TO_ONE--"
         ]
       }
     ]

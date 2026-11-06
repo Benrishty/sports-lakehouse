@@ -30,5 +30,21 @@
  [
   "Which teams have been the luckiest this season?",
   "SELECT gold_team_season.team, gold_team_season.wins, gold_team_season.losses, gold_team_season.ties, gold_team_season.net_epa_rank, gold_team_season.record_rank, gold_team_season.luck_gap\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nORDER BY gold_team_season.luck_gap DESC\nLIMIT 10"
+ ],
+ [
+  "What does the NFC playoff picture look like right now?",
+  "SELECT gold_standings.conference_seed, gold_standings.team, gold_standings.team_name, gold_standings.division, gold_standings.wins, gold_standings.losses, gold_standings.ties, gold_standings.division_leader, gold_standings.division_games_back, gold_standings.in_playoff_position\nFROM workspace.nfl.gold_standings\nWHERE gold_standings.season = (SELECT MAX(season) FROM workspace.nfl.gold_standings)\n  AND gold_standings.conference = 'NFC'\nORDER BY gold_standings.conference_seed"
+ ],
+ [
+  "Which teams have gone over the total most often this season?",
+  "SELECT gold_team_betting.team, gold_team_betting.overs, gold_team_betting.unders, gold_team_betting.ou_pushes, ROUND(100 * gold_team_betting.over_pct, 1) AS over_pct, ROUND(gold_team_betting.avg_total_vs_line, 1) AS avg_total_vs_line\nFROM workspace.nfl.gold_team_betting\nWHERE gold_team_betting.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_betting)\nORDER BY gold_team_betting.over_pct DESC, gold_team_betting.avg_total_vs_line DESC\nLIMIT 10"
+ ],
+ [
+  "Who leads the league in receiving yards this season?",
+  "SELECT gold_player_season.player_name, gold_player_season.position, gold_player_season.latest_team, gold_player_season.games, gold_player_season.targets, gold_player_season.receptions, gold_player_season.receiving_yards, gold_player_season.receiving_tds\nFROM workspace.nfl.gold_player_season\nWHERE gold_player_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_season)\nORDER BY gold_player_season.receiving_yards DESC\nLIMIT 10"
+ ],
+ [
+  "Which quarterbacks have played for the Giants this season, and in which weeks?",
+  "SELECT silver_player_week.player_name, MIN(silver_player_week.week) AS first_week, MAX(silver_player_week.week) AS last_week, COUNT(*) AS games, SUM(silver_player_week.attempts) AS attempts, SUM(silver_player_week.passing_yards) AS passing_yards, SUM(silver_player_week.passing_tds) AS passing_tds, SUM(silver_player_week.passing_interceptions) AS interceptions, ROUND(SUM(silver_player_week.passing_epa), 1) AS passing_epa\nFROM workspace.nfl.silver_player_week\nWHERE silver_player_week.season = (SELECT MAX(season) FROM workspace.nfl.silver_player_week)\n  AND silver_player_week.season_type = 'REG' AND silver_player_week.team = 'NYG'\n  AND silver_player_week.position = 'QB' AND silver_player_week.attempts > 0\nGROUP BY silver_player_week.player_name\nORDER BY first_week"
  ]
 ]
