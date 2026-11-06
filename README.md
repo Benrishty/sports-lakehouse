@@ -38,6 +38,17 @@ flowchart LR
 | Gold | `gold_team_season` | team × season: record, ATS record, EPA ranks | `src/pipelines/nfl_gold.sql` |
 | Gold | `gold_qb_season` | QB × season: EPA/dropback, CPOE | `src/pipelines/nfl_gold.sql` |
 
+## Running on Databricks
+
+The declarative pipeline: bronze sources → typed views with expectations → AUTO CDC streaming tables → gold
+materialized views. The first full run upserted 1.3M plays and 7.5K games.
+
+![Lakeflow pipeline graph](docs/pipeline-graph.png)
+
+Unity Catalog lineage for `gold_team_season`, captured automatically from the pipeline:
+
+![Unity Catalog lineage](docs/lineage.png)
+
 ## Design decisions
 
 **The source republishes, so land snapshots and let CDC dedupe.** nflverse rewrites the entire
