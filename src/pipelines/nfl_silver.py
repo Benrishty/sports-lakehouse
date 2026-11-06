@@ -17,6 +17,19 @@ BRONZE_PBP = f"{CATALOG}.{SCHEMA}.bronze_pbp"
 BRONZE_GAMES = f"{CATALOG}.{SCHEMA}.bronze_games"
 
 
+# nflverse play-by-play uses each franchise's *current* code for every season (the 1999 Rams are LA),
+# but the schedules file uses the historical code (STL). Map schedules onto the play-by-play convention so
+# games join to plays; without this, ~50 team-seasons of STL/SD/OAK lose their record and per-game EPA.
+FRANCHISE_CODE = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
+
+
+def franchise(col: str):
+    expr = F.col(col)
+    for old, new in FRANCHISE_CODE.items():
+        expr = F.when(F.col(col) == old, F.lit(new)).otherwise(expr)
+    return expr.alias(col)
+
+
 def flag(name: str):
     """nflverse 0/1 flags arrive as DOUBLE in bronze."""
     return F.col(name).cast("int").alias(name)
@@ -104,8 +117,8 @@ def games_typed():
         "game_type",
         F.col("week").cast("int").alias("week"),
         F.to_date("gameday").alias("game_date"),
-        "home_team",
-        "away_team",
+        franchise("home_team"),
+        franchise("away_team"),
         F.col("home_score").cast("int").alias("home_score"),
         F.col("away_score").cast("int").alias("away_score"),
         # result = home_score - away_score; spread_line > 0 means the home team is favoured

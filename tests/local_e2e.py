@@ -122,4 +122,9 @@ spark.sql("""select game_id, team, opponent, home_away, points_for, points_again
 # sanity: each completed game appears exactly twice, margins mirror
 bad = spark.sql("select game_id from gold_team_games group by game_id having count(*) != 2 or sum(margin) != 0").count()
 assert bad == 0, bad
+# relocated franchises: schedule codes (STL/SD/OAK) must line up with play-by-play codes (LA/LAC/LV)
+orphans = spark.sql("""select season, team from gold_team_season
+                       where season in (1999, 2010, 2020) and wins is null""").collect()
+assert not orphans, f"team-seasons with plays but no record (team-code mismatch): {orphans}"
+assert spark.sql("select count(*) c from silver_games where home_team in ('STL','SD','OAK') or away_team in ('STL','SD','OAK')").first().c == 0
 print("ALL CHECKS PASSED")
