@@ -146,3 +146,117 @@ dp.create_auto_cdc_flow(
     sequence_by=F.col("_snapshot_ts"),
     stored_as_scd_type=1,
 )
+
+
+# ---------------------------------------------------------------- teams (dimension)
+BRONZE_TEAMS = f"{CATALOG}.{SCHEMA}.bronze_teams"
+BRONZE_PLAYERS = f"{CATALOG}.{SCHEMA}.bronze_players"
+BRONZE_PLAYER_WEEK = f"{CATALOG}.{SCHEMA}.bronze_player_week"
+
+
+@dp.temporary_view(comment="Team names, conference/division, colours and logo URLs from nflverse.")
+@dp.expect_or_drop("has_key", "team IS NOT NULL")
+def teams_typed():
+    return spark.readStream.table(BRONZE_TEAMS).select(
+        F.col("team_abbr").alias("team"),
+        "team_name",
+        F.col("team_nick").alias("team_nickname"),
+        F.col("team_conf").alias("conference"),
+        F.col("team_division").alias("division"),
+        F.col("team_color").alias("team_color"),
+        F.col("team_color2").alias("team_color2"),
+        F.col("team_logo_espn").alias("team_logo_url"),
+        F.col("team_wordmark").alias("team_wordmark_url"),
+        "_snapshot_ts",
+    )
+
+
+dp.create_streaming_table(
+    name="silver_teams",
+    comment="One row per team code (current and historical codes), with conference, division (current alignment), colours and logo URLs.",
+)
+dp.create_auto_cdc_flow(target="silver_teams", source="teams_typed", keys=["team"],
+                        sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
+
+
+# ---------------------------------------------------------------- players (dimension)
+
+@dp.temporary_view(comment="Player bio, position and headshot URL from nflverse players.")
+@dp.expect_or_drop("has_key", "player_id IS NOT NULL")
+def players_typed():
+    return spark.readStream.table(BRONZE_PLAYERS).select(
+        F.col("gsis_id").alias("player_id"),
+        F.col("display_name").alias("player_name"),
+        "first_name",
+        "last_name",
+        F.col("short_name").alias("player_short_name"),
+        "position",
+        "position_group",
+        F.col("headshot").alias("headshot_url"),
+        F.col("height").cast("int").alias("height_in"),
+        F.col("weight").cast("int").alias("weight_lb"),
+        F.to_date("birth_date").alias("birth_date"),
+        F.col("college_name").alias("college"),
+        F.col("rookie_season").cast("int").alias("rookie_season"),
+        F.col("draft_year").cast("int").alias("draft_year"),
+        F.col("draft_round").cast("int").alias("draft_round"),
+        F.col("draft_pick").cast("int").alias("draft_pick"),
+        "latest_team",
+        "status",
+        "_snapshot_ts",
+    )
+
+
+dp.create_streaming_table(
+    name="silver_players",
+    comment="One row per player (nflverse gsis id): full name, position, bio, draft and headshot URL.",
+)
+dp.create_auto_cdc_flow(target="silver_players", source="players_typed", keys=["player_id"],
+                        sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
+
+
+# ---------------------------------------------------------------- player × week stats
+
+def i(name: str, alias: str = None):
+    return F.col(name).cast("int").alias(alias or name)
+
+
+@dp.temporary_view(comment="Typed weekly player box-score stats, one row per player per game week per snapshot.")
+@dp.expect_or_drop("has_key", "player_id IS NOT NULL AND season IS NOT NULL AND week IS NOT NULL")
+@dp.expect("known_season_type", "season_type IN ('REG', 'POST')")
+def player_week_typed():
+    return spark.readStream.table(BRONZE_PLAYER_WEEK).select(
+        "player_id",
+        F.col("player_display_name").alias("player_name"),
+        F.col("player_name").alias("player_short_name"),
+        "position",
+        "position_group",
+        "headshot_url",
+        i("season"), i("week"), "season_type", "game_id",
+        "team",
+        F.col("opponent_team").alias("opponent"),
+        # passing
+        i("completions"), i("attempts"), i("passing_yards"), i("passing_tds"),
+        i("passing_interceptions"), i("sacks_suffered"), "passing_epa", "passing_cpoe",
+        # rushing
+        i("carries"), i("rushing_yards"), i("rushing_tds"), "rushing_epa",
+        # receiving
+        i("receptions"), i("targets"), i("receiving_yards"), i("receiving_tds"), "receiving_epa",
+        "target_share", "air_yards_share",
+        # defense
+        i("def_tackles_solo"), i("def_tackle_assists"), "def_sacks", i("def_interceptions"), i("def_tds"),
+        # kicking
+        i("fg_made"), i("fg_att"),
+        "fantasy_points", "fantasy_points_ppr",
+        "_snapshot_ts",
+    )
+
+
+dp.create_streaming_table(
+    name="silver_player_week",
+    comment="One row per player per week (REG and POST), 1999 → today: passing, rushing, receiving, defense, kicking, fantasy.",
+    cluster_by=["season", "week"],
+)
+dp.create_auto_cdc_flow(target="silver_player_week", source="player_week_typed",
+                        keys=["player_id", "season", "week", "season_type"],
+                        sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)

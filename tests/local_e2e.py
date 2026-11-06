@@ -55,6 +55,15 @@ for p in parts[1:]: bronze_pbp = bronze_pbp.unionByName(p)
 games_p = "/Volumes/x/y/landing/nfl/games/snapshot=20261106T120000Z/games.parquet"
 bronze_games = ns["apply_bronze_contract"](spark.read.parquet(str(DATA / "games.parquet"))) \
     .withColumn("_snapshot_ts", F.lit(ns["snapshot_ts"](games_p)).cast("timestamp"))
+def bronze_file(name: str, ds: str):
+    p = f"/Volumes/x/y/landing/nfl/{ds}/snapshot=20261106T120000Z/{name}"
+    return ns["apply_bronze_contract"](spark.read.parquet(str(DATA / name))) \
+        .withColumn("_snapshot_ts", F.lit(ns["snapshot_ts"](p)).cast("timestamp"))
+
+bronze_teams = bronze_file("teams_colors_logos.parquet", "teams")
+bronze_players = bronze_file("players.parquet", "players")
+bronze_player_week = bronze_file("stats_player_week_1999.parquet", "player_week").unionByName(
+    bronze_file("stats_player_week_2026.parquet", "player_week"))
 print("bronze_pbp rows", bronze_pbp.count())
 
 # ---- silver: exec the pipeline file with a stub dp module
@@ -79,7 +88,8 @@ class StubSpark:
     class readStream:  # noqa: N801
         @staticmethod
         def table(name):
-            return {"x.y.bronze_pbp": bronze_pbp, "x.y.bronze_games": bronze_games}[name]
+            return {"x.y.bronze_pbp": bronze_pbp, "x.y.bronze_games": bronze_games, "x.y.bronze_teams": bronze_teams,
+                    "x.y.bronze_players": bronze_players, "x.y.bronze_player_week": bronze_player_week}[name]
 
 silver_src = (PROJ / "src/pipelines/nfl_silver.py").read_text().replace(
     "from pyspark import pipelines as dp", "dp = __dp__")
@@ -130,4 +140,29 @@ assert spark.sql("select count(*) c from silver_games where home_team in ('STL',
 # luck_gap is governed in gold: LA 2026 is 4-4 (#15 record) but #4 in net EPA -> -11 (unlucky)
 la = spark.sql("select net_epa_rank, record_rank, luck_gap from gold_team_season where season = 2026 and team = 'LA'").first()
 assert (la.net_epa_rank, la.record_rank, la.luck_gap) == (4, 15, -11), la
+# ---- standings: the Giants answer that went wrong. NYG lead the NFC East at 4-2-1 -> a top-4 seed.
+st = {r.team: r for r in spark.sql("select * from gold_standings where season = 2026").collect()}
+assert st["NYG"].conference == "NFC" and st["NYG"].division == "NFC East", st["NYG"]
+assert st["NYG"].division_leader and st["NYG"].conference_seed <= 4, st["NYG"]
+assert st["CAR"].division_leader, st["CAR"]                      # 3-4 still leads the NFC South
+for conf in ("AFC", "NFC"):
+    seeds = sorted(r.conference_seed for r in st.values() if r.conference == conf)
+    assert seeds == list(range(1, 17)), (conf, seeds)              # 16 teams, seeds 1..16, no gaps
+    assert sum(r.division_leader for r in st.values() if r.conference == conf) == 4
+assert spark.sql("select count(*) c from gold_standings where season < 2002").first().c == 0
+
+# ---- betting: both teams in a game share one O/U result; ATS splits add up
+bad_ou = spark.sql("select game_id from gold_team_games where ou_outcome is not null group by game_id having count(distinct ou_outcome) != 1").count()
+assert bad_ou == 0, bad_ou
+b = spark.sql("""select b.*, s.ats_covers s_cov from gold_team_betting b join gold_team_season s using (season, team)""").collect()
+assert all(r.ats_covers == r.s_cov for r in b)
+assert all(r.favorite_covers + r.underdog_covers <= r.ats_covers for r in b)
+assert all(r.overs + r.unders + r.ou_pushes <= r.games for r in b)
+
+# ---- players: full names (not "Jared"), headshots
+dart = spark.sql("select * from gold_player_season where season = 2026 and player_name = 'Jaxson Dart'").collect()
+assert dart and dart[0].position == "QB" and dart[0].headshot_url.startswith("https://"), dart
+winston = spark.sql("select player_name, headshot_url from gold_qb_season where season = 2026 and player_short_name = 'J.Winston'").first()
+assert winston.player_name == "Jameis Winston" and winston.headshot_url, winston
+assert spark.sql("select count(*) c from gold_player_season where season = 1999").first().c > 1000
 print("ALL CHECKS PASSED")

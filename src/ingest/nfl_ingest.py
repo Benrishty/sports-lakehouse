@@ -30,10 +30,16 @@ DOWNLOAD = dbutils.widgets.get("download") == "true"
 LANDING = f"/Volumes/{CATALOG}/{SCHEMA}/landing/nfl"
 NFLVERSE = "https://github.com/nflverse/nflverse-data/releases/download"
 
-# dataset -> (url template, file name template, bronze table)
+# dataset -> (url template, file name template, bronze table, seasonal?)
+# Seasonal datasets publish one file per season ({season} in the name); the others are one file for all
+# seasons and are re-landed every run.
 DATASETS = {
-    "pbp": (NFLVERSE + "/pbp/play_by_play_{season}.parquet", "play_by_play_{season}.parquet", "bronze_pbp"),
-    "games": (NFLVERSE + "/schedules/games.parquet", "games.parquet", "bronze_games"),
+    "pbp": (NFLVERSE + "/pbp/play_by_play_{season}.parquet", "play_by_play_{season}.parquet", "bronze_pbp", True),
+    "player_week": (NFLVERSE + "/stats_player/stats_player_week_{season}.parquet", "stats_player_week_{season}.parquet",
+                    "bronze_player_week", True),
+    "games": (NFLVERSE + "/schedules/games.parquet", "games.parquet", "bronze_games", False),
+    "teams": (NFLVERSE + "/teams/teams_colors_logos.parquet", "teams_colors_logos.parquet", "bronze_teams", False),
+    "players": (NFLVERSE + "/players/players.parquet", "players.parquet", "bronze_players", False),
 }
 
 # COMMAND ----------
@@ -105,16 +111,18 @@ print(f"seasons={seasons[0]}..{seasons[-1]} ({len(seasons)})  snapshot={snapshot
 
 download_failures = []
 if DOWNLOAD:
-    already = {os.path.basename(p) for p in landed_files("pbp")}
     targets = []
-    for season in seasons:
-        url_t, name_t, _ = DATASETS["pbp"]
-        name = name_t.format(season=season)
-        # Finished seasons rarely change: land them once. The current season is re-landed every run.
-        if season != current and name in already:
+    for ds, (url_t, name_t, _, seasonal) in DATASETS.items():
+        if not seasonal:
+            targets.append((url_t, f"{LANDING}/{ds}/snapshot={snapshot}/{name_t}"))
             continue
-        targets.append((url_t.format(season=season), f"{LANDING}/pbp/snapshot={snapshot}/{name}"))
-    targets.append((DATASETS["games"][0], f"{LANDING}/games/snapshot={snapshot}/{DATASETS['games'][1]}"))
+        already = {os.path.basename(p) for p in landed_files(ds)}
+        for season in seasons:
+            name = name_t.format(season=season)
+            # Finished seasons rarely change: land them once. The current season is re-landed every run.
+            if season != current and name in already:
+                continue
+            targets.append((url_t.format(season=season), f"{LANDING}/{ds}/snapshot={snapshot}/{name}"))
 
     for url, dest in targets:
         try:

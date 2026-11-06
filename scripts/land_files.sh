@@ -19,15 +19,19 @@ VOL="dbfs:/Volumes/${CATALOG}/${SCHEMA}/landing/nfl"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-for season in $(seq "$FIRST" "$LAST"); do
-  f="play_by_play_${season}.parquet"
+land() {  # land <release path> <dataset dir>
+  local f; f="$(basename "$1")"
   echo "→ $f"
-  curl -fsSL -o "$TMP/$f" "$BASE/pbp/$f"
-  databricks fs cp "$TMP/$f" "$VOL/pbp/snapshot=${SNAP}/$f"
-done
+  curl -fsSL -o "$TMP/$f" "$BASE/$1"
+  databricks fs cp "$TMP/$f" "$VOL/$2/snapshot=${SNAP}/$f"
+}
 
-echo "→ games.parquet"
-curl -fsSL -o "$TMP/games.parquet" "$BASE/schedules/games.parquet"
-databricks fs cp "$TMP/games.parquet" "$VOL/games/snapshot=${SNAP}/games.parquet"
+for season in $(seq "$FIRST" "$LAST"); do
+  land "pbp/play_by_play_${season}.parquet" pbp
+  land "stats_player/stats_player_week_${season}.parquet" player_week
+done
+land schedules/games.parquet games
+land teams/teams_colors_logos.parquet teams
+land players/players.parquet players
 
 echo "Landed snapshot ${SNAP}. Now run the nfl_ingest notebook with download=false."
