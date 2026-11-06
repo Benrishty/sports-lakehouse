@@ -60,7 +60,7 @@ LEFT JOIN red_zone rz ON rz.season = pl.season AND rz.team = pl.team AND rz.side
 
 -- ---------------------------------------------------------------- team report card (long)
 CREATE OR REFRESH MATERIALIZED VIEW gold_team_report_card
-COMMENT "One row per team per regular season per metric: value, league rank (1 = best), percentile, league average and tier (1-8 top, 9-16 above average, 17-24 below average, 25-32 bottom). Direction-aware: for 'lower is better' metrics rank 1 is the lowest value. Neutral tendency metrics (pass rate over expected, play-action rate, blitz rate) are ranked high-to-low with tier 'tendency'."
+COMMENT "One row per team per regular season per metric: unit (Offense / Defense / Special teams / Discipline / Overall), phase, value, league rank (1 = best), percentile, league average and tier (1-8 top, 9-16 above average, 17-24 below average, 25-32 bottom). Direction-aware: for 'lower is better' metrics rank 1 is the lowest value. Neutral tendency metrics (pass rate over expected, play-action rate, blitz rate) are ranked high-to-low with tier 'tendency'."
 AS
 WITH o AS (SELECT * FROM gold_team_phase_stats WHERE side = 'offense'),
 d AS (SELECT * FROM gold_team_phase_stats WHERE side = 'defense'),
@@ -124,7 +124,11 @@ long AS (
   FROM wide
 )
 SELECT
-  season, team, metric_order, phase, metric, value, better,
+  season, team,
+  -- unit groups every phase: "how is our defense?" means all defensive phases, not just the 'Defense' rows
+  CASE WHEN metric_order = 26 THEN 'Overall' WHEN metric_order <= 12 THEN 'Offense' WHEN metric_order <= 23 THEN 'Defense'
+       WHEN metric_order = 24 THEN 'Special teams' ELSE 'Discipline' END AS unit,
+  metric_order, phase, metric, value, better,
   RANK() OVER (PARTITION BY season, metric ORDER BY CASE WHEN better = 'lower' THEN value ELSE -value END) AS league_rank,
   COUNT(value) OVER (PARTITION BY season, metric) AS teams_ranked,
   1 - (RANK() OVER (PARTITION BY season, metric ORDER BY CASE WHEN better = 'lower' THEN value ELSE -value END) - 1)
@@ -180,7 +184,7 @@ GROUP BY season, player_id;
 
 -- ---------------------------------------------------------------- player advanced (player × season)
 CREATE OR REFRESH MATERIALIZED VIEW gold_player_advanced
-COMMENT "One row per player per regular season: box score and EPA (all seasons) plus snap share (2012+), Next Gen Stats (2016+: time to throw, aggressiveness, CPOE, rush yards over expected, separation, YAC over expected) and PFR advanced (2018+: pressure rate faced, bad throws, yards after contact, broken tackles, drops, pressures generated, missed tackles, coverage allowed)."
+COMMENT "One row per player per regular season: box score and EPA (all seasons) plus snap share (2012+), Next Gen Stats (2016+: time to throw, aggressiveness (%), CPOE (pct points), rush yards over expected, stacked-box rate (0-1), separation, YAC over expected, air-yards share (0-1)) and PFR advanced (2018+: pressure rate faced, bad throws, yards after contact, broken tackles, drops, pressures generated, missed tackles, coverage allowed)."
 AS
 WITH snaps AS (
   SELECT season, player_id, SUM(games) AS snap_games, SUM(offense_snaps) AS offense_snaps, SUM(defense_snaps) AS defense_snaps,
@@ -204,8 +208,8 @@ SELECT
   g.solo_tackles + g.assisted_tackles AS tackles, g.sacks, g.def_interceptions, g.fantasy_points_ppr,
   -- Next Gen Stats
   np.avg_time_to_throw, np.aggressiveness, np.completion_percentage_above_expectation AS ngs_cpoe, np.avg_intended_air_yards,
-  nr.rush_yards_over_expected, nr.rush_yards_over_expected_per_att, nr.percent_attempts_gte_eight_defenders AS stacked_box_rate,
-  nv.avg_separation, nv.avg_cushion, nv.avg_yac_above_expectation, nv.percent_share_of_intended_air_yards AS air_yards_share,
+  nr.rush_yards_over_expected, nr.rush_yards_over_expected_per_att, nr.percent_attempts_gte_eight_defenders / 100 AS stacked_box_rate,
+  nv.avg_separation, nv.avg_cushion, nv.avg_yac_above_expectation, nv.percent_share_of_intended_air_yards / 100 AS air_yards_share,
   -- PFR advanced
   pp.pressure_pct AS pressure_rate_faced, pp.bad_throw_pct, pp.on_tgt_pct, pp.pocket_time,
   pr.ybc_att AS yards_before_contact_per_att, pr.yac_att AS yards_after_contact_per_att, pr.broken_tackles AS rush_broken_tackles,

@@ -1,0 +1,307 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "0ed9728c3bc95f169c13f49afce6bba8",
+        "question": [
+          "How does our spending by position group compare to the top teams?"
+        ]
+      },
+      {
+        "id": "4a873c503efd5e7a8e165daaa96a63c2",
+        "question": [
+          "Who are our most overpaid players right now?"
+        ]
+      },
+      {
+        "id": "90a4738d361e5d538e17ee9cf54c4083",
+        "question": [
+          "Find edge rushers on other teams who are outperforming their contracts."
+        ]
+      },
+      {
+        "id": "bbe9e13f9e4956a0a06ce9ee610b13d2",
+        "question": [
+          "Which of our starters have contracts ending after this season?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "workspace.nfl.gold_cap_allocation",
+        "description": [
+          "Spend by team and position group: share of team APY vs. league average and the 8 best teams by net EPA."
+        ],
+        "column_configs": [
+          {
+            "column_name": "position_group",
+            "description": [
+              "Contract position group."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_data_freshness",
+        "description": [
+          "How current each source is."
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_player_advanced",
+        "description": [
+          "Per-player season performance (box score, EPA, snaps, Next Gen Stats, defensive credit)."
+        ],
+        "column_configs": [
+          {
+            "column_name": "latest_team",
+            "description": [
+              "Team (franchise code)."
+            ],
+            "synonyms": [
+              "team"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_player_value",
+        "description": [
+          "Active contracts with current-season role and production. value_score = production percentile - cost percentile within position group: positive = bargain, negative = overpaid. OL and specialists are not scored."
+        ],
+        "column_configs": [
+          {
+            "column_name": "apy_m",
+            "description": [
+              "Average annual value, $M."
+            ],
+            "synonyms": [
+              "salary",
+              "contract",
+              "cap"
+            ]
+          },
+          {
+            "column_name": "final_season",
+            "description": [
+              "Last season of the current contract. final_season <= season = expiring after this season."
+            ],
+            "synonyms": [
+              "contract end"
+            ]
+          },
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "position_group",
+            "description": [
+              "QB, RB, WR, TE, OL, IDL, EDGE, LB, CB, S, ST (contract positions)."
+            ],
+            "synonyms": [
+              "position"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "role",
+            "description": [
+              "starter (60%+ snaps) / rotation (25-60%) / reserve."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "value_score",
+            "description": [
+              "-1..1. Positive = outperforming the contract. Multiply by 100 for display."
+            ],
+            "synonyms": [
+              "value",
+              "bargain",
+              "overpaid"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_team_season",
+        "description": [
+          "Team season summary incl. net EPA rank."
+        ],
+        "column_configs": [
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.silver_contracts",
+        "description": [
+          "Every OverTheCap contract (current and past): APY, guarantees, years, signing year. is_active = current deal."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "a4b0307cd7f85d0a9c4b1dc1845bc1aa",
+        "content": [
+          "'We', 'us', 'our team' and 'my team' mean the New York Giants (team = 'NYG') unless the user names another team.",
+          "This is a general manager's assistant: lead with the answer, back it with the key numbers, and when relevant end with the decision it points to (e.g. extend, replace, target, draft). Keep it short.",
+          "'This season' = the latest season in the data. Default to the regular season. Before answering about the current season, check gold_data_freshness if available and say 'as of week N'. PFR advanced stats (pressures, coverage allowed) lag weeks behind in-season: prefer play-by-play based columns for the current season and say so if you use PFR.",
+          "Ranks are out of 32 teams: 1-8 = top tier, 9-16 = above average, 17-24 = below average, 25-32 = bottom tier. Use the tier words, never call a mid-table rank 'elite' or 'poor'.",
+          "Use player and team names exactly as stored. Never expand an abbreviated name (e.g. 'J.Dart') into a guessed first name.",
+          "Only state what the data shows. Injuries come only from the official injury report tables. The data has no trade rumors, coaching or scheme information: do not invent reasons.",
+          "Money is in $ millions of APY (average annual value) from OverTheCap, not the exact current-year cap hit. Say 'APY' when quoting it.",
+          "Round EPA to 3 decimals, rates to 1 decimal as percentages, money to 1 decimal.",
+          "Overpaid / bargain questions: use value_score in gold_player_value and show the production metric it is based on (production_metric_name). Say OL is not scored.",
+          "Trade or free-agent targets: players on OTHER teams with high value_score, ideally with final_season soon (cheaper to acquire) and age under 30.",
+          "Spending questions: compare share_of_team_apy with league_avg_share and top8_avg_share."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "483708dc0392506ea4c495d06851ac48",
+        "question": [
+          "Who are our most overpaid players right now?"
+        ],
+        "sql": [
+          "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.final_season, ROUND(100 * gold_player_value.snap_share) AS snap_pct, gold_player_value.production_metric_name, ROUND(gold_player_value.production_metric, 2) AS production, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score ASC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "52a332035ee153ea83b5b681932bf9e0",
+        "question": [
+          "Find edge rushers on other teams who are outperforming their contracts."
+        ],
+        "sql": [
+          "SELECT gold_player_value.player_name, gold_player_value.team, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.final_season, gold_player_value.sacks_plus_hits, ROUND(gold_player_value.production_metric, 2) AS sacks_hits_per_100_snaps, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.position_group = 'EDGE' AND gold_player_value.team <> 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "79a5123dc19858ad95bf8d525f601dc6",
+        "question": [
+          "Which teams spend the most on quarterbacks and how efficient are their quarterbacks?"
+        ],
+        "sql": [
+          "SELECT gold_cap_allocation.team, ROUND(gold_cap_allocation.apy_m, 1) AS qb_apy_m, ROUND(100 * gold_cap_allocation.share_of_team_apy, 1) AS qb_share_pct, gold_team_season.net_epa_rank, gold_team_season.wins, gold_team_season.losses\nFROM workspace.nfl.gold_cap_allocation\nJOIN workspace.nfl.gold_team_season ON gold_team_season.team = gold_cap_allocation.team AND gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nWHERE gold_cap_allocation.position_group = 'QB'\nORDER BY gold_cap_allocation.apy_m DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "848329ad94a556f59289fcfbe9bd26da",
+        "question": [
+          "How does our spending by position group compare to the league and the top teams?"
+        ],
+        "sql": [
+          "SELECT gold_cap_allocation.position_group, ROUND(gold_cap_allocation.apy_m, 1) AS apy_m, ROUND(100 * gold_cap_allocation.share_of_team_apy, 1) AS our_share_pct, ROUND(100 * gold_cap_allocation.league_avg_share, 1) AS league_avg_pct, ROUND(100 * gold_cap_allocation.top8_avg_share, 1) AS top8_avg_pct\nFROM workspace.nfl.gold_cap_allocation\nWHERE gold_cap_allocation.team = 'NYG'\nORDER BY gold_cap_allocation.share_of_team_apy DESC"
+        ]
+      },
+      {
+        "id": "a2c25472c48858aaac3670988f3c6eac",
+        "question": [
+          "Which of our starters have contracts ending after this season?"
+        ],
+        "sql": [
+          "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, ROUND(100 * gold_player_value.snap_share) AS snap_pct, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.final_season <= gold_player_value.season AND gold_player_value.role = 'starter'\nORDER BY gold_player_value.snap_share DESC"
+        ]
+      }
+    ]
+  }
+}

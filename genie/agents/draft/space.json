@@ -1,0 +1,265 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "7bb4b769b6635d4e920079addc19301f",
+        "question": [
+          "How have our draft classes performed over the last ten mature classes?"
+        ]
+      },
+      {
+        "id": "8826c21f332453f0824674e60b314bfa",
+        "question": [
+          "What were our best and worst draft picks since 2010?"
+        ]
+      },
+      {
+        "id": "8bb24c1dada25554b2d542f14c9ae63b",
+        "question": [
+          "Which positions have the best hit rate in the first round?"
+        ]
+      },
+      {
+        "id": "c7121eb492395753a485affe2fc5a8d8",
+        "question": [
+          "Where are we projected to pick in the next draft?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "workspace.nfl.gold_draft_order_projection",
+        "description": [
+          "Projected first-round order if the season ended today (ignores playoffs and traded picks)."
+        ],
+        "column_configs": [
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_draft_pick_value",
+        "description": [
+          "Every pick since 2000 with career value for the drafting team (dr_av) vs. the slot average (expected_dr_av). surplus_av meaningful only when is_mature (5+ years since the draft). hit = 3+ seasons as a starter."
+        ],
+        "column_configs": [
+          {
+            "column_name": "draft_year",
+            "description": [
+              "Draft class year."
+            ],
+            "synonyms": [
+              "class"
+            ]
+          },
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "position",
+            "description": [
+              "PFR draft position, e.g. QB, T, DE, OLB, CB."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_draft_position_value",
+        "description": [
+          "League-wide hit rate, Pro Bowl rate and average AV by position and round (mature classes since 2000)."
+        ],
+        "column_configs": [
+          {
+            "column_name": "position",
+            "description": [
+              "PFR draft position."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_draft_team_grades",
+        "description": [
+          "Per team per mature class: picks, hits, Pro Bowlers, surplus AV vs. slot, class rank."
+        ],
+        "column_configs": [
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_standings",
+        "description": [
+          "Current standings (drives the projected order)."
+        ],
+        "column_configs": [
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.silver_combine",
+        "description": [
+          "Scouting combine: 40, bench, vertical, broad, 3-cone, shuttle. Join gold_draft_pick_value on pfr_player_id."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "757ce37ec5ab5076931f4c5e0371bc72",
+        "content": [
+          "'We', 'us', 'our team' and 'my team' mean the New York Giants (team = 'NYG') unless the user names another team.",
+          "This is a general manager's assistant: lead with the answer, back it with the key numbers, and when relevant end with the decision it points to (e.g. extend, replace, target, draft). Keep it short.",
+          "'This season' = the latest season in the data. Default to the regular season. Before answering about the current season, check gold_data_freshness if available and say 'as of week N'. PFR advanced stats (pressures, coverage allowed) lag weeks behind in-season: prefer play-by-play based columns for the current season and say so if you use PFR.",
+          "Ranks are out of 32 teams: 1-8 = top tier, 9-16 = above average, 17-24 = below average, 25-32 = bottom tier. Use the tier words, never call a mid-table rank 'elite' or 'poor'.",
+          "Use player and team names exactly as stored. Never expand an abbreviated name (e.g. 'J.Dart') into a guessed first name.",
+          "Only state what the data shows. Injuries come only from the official injury report tables. The data has no trade rumors, coaching or scheme information: do not invent reasons.",
+          "Money is in $ millions of APY (average annual value) from OverTheCap, not the exact current-year cap hit. Say 'APY' when quoting it.",
+          "Round EPA to 3 decimals, rates to 1 decimal as percentages, money to 1 decimal.",
+          "Only grade classes where is_mature is true: recent classes have not had time to accumulate value. Say so if asked about a recent class.",
+          "AV = Pro Football Reference approximate value earned for the drafting team (dr_av). Explain surplus as 'AV above/below what that pick slot usually produces'.",
+          "The projected draft order ignores playoff results, tiebreakers and traded picks: say it is approximate."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "77849f373db75d9fbe1e165902d9684a",
+        "question": [
+          "Which teams have drafted best over the last ten mature classes?"
+        ],
+        "sql": [
+          "SELECT gold_draft_team_grades.team, SUM(gold_draft_team_grades.picks) AS picks, SUM(gold_draft_team_grades.hits) AS hits, SUM(gold_draft_team_grades.pro_bowlers) AS pro_bowlers, ROUND(SUM(gold_draft_team_grades.surplus_av), 1) AS surplus_av\nFROM workspace.nfl.gold_draft_team_grades\nWHERE gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl.gold_draft_team_grades)\nGROUP BY gold_draft_team_grades.team\nORDER BY surplus_av DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "8a97a3459e195fb79aaa63add5789d81",
+        "question": [
+          "What were our best and worst draft picks since 2010?"
+        ],
+        "sql": [
+          "SELECT gold_draft_pick_value.draft_year, gold_draft_pick_value.round, gold_draft_pick_value.pick, gold_draft_pick_value.player_name, gold_draft_pick_value.position, gold_draft_pick_value.dr_av, ROUND(gold_draft_pick_value.expected_dr_av, 1) AS slot_expected_av, ROUND(gold_draft_pick_value.surplus_av, 1) AS surplus_av\nFROM workspace.nfl.gold_draft_pick_value\nWHERE gold_draft_pick_value.team = 'NYG' AND gold_draft_pick_value.draft_year >= 2010 AND gold_draft_pick_value.is_mature\nORDER BY gold_draft_pick_value.surplus_av DESC"
+        ]
+      },
+      {
+        "id": "983fc3a85b385583a0f7a660e6f6c389",
+        "question": [
+          "How have our draft classes performed over the last ten mature classes compared with the league?"
+        ],
+        "sql": [
+          "SELECT gold_draft_team_grades.draft_year, gold_draft_team_grades.picks, gold_draft_team_grades.hits, gold_draft_team_grades.pro_bowlers, ROUND(gold_draft_team_grades.surplus_av, 1) AS surplus_av, gold_draft_team_grades.class_rank\nFROM workspace.nfl.gold_draft_team_grades\nWHERE gold_draft_team_grades.team = 'NYG' AND gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl.gold_draft_team_grades)\nORDER BY gold_draft_team_grades.draft_year"
+        ]
+      },
+      {
+        "id": "bd1b07426105564a85f0ef7582a6a36c",
+        "question": [
+          "Where are we projected to pick in the next draft?"
+        ],
+        "sql": [
+          "SELECT gold_draft_order_projection.draft_year, gold_draft_order_projection.projected_pick, gold_draft_order_projection.team, gold_draft_order_projection.wins, gold_draft_order_projection.losses, gold_draft_order_projection.ties, gold_draft_order_projection.in_playoff_position\nFROM workspace.nfl.gold_draft_order_projection\nWHERE gold_draft_order_projection.team = 'NYG'"
+        ]
+      },
+      {
+        "id": "d00403733b205bef8d8fd8575e3b94ec",
+        "question": [
+          "Which positions have the best hit rate in the first round?"
+        ],
+        "sql": [
+          "SELECT gold_draft_position_value.position, gold_draft_position_value.picks, ROUND(100 * gold_draft_position_value.hit_rate, 1) AS hit_rate_pct, ROUND(100 * gold_draft_position_value.pro_bowl_rate, 1) AS pro_bowl_pct, ROUND(gold_draft_position_value.avg_av_for_team, 1) AS avg_av\nFROM workspace.nfl.gold_draft_position_value\nWHERE gold_draft_position_value.round = 1 AND gold_draft_position_value.picks >= 15\nORDER BY gold_draft_position_value.hit_rate DESC"
+        ]
+      },
+      {
+        "id": "f157eb1fd2b650cf939b2eb452d2dcd1",
+        "question": [
+          "What did first-round edge rushers who became Pro Bowlers run in the 40-yard dash?"
+        ],
+        "sql": [
+          "SELECT gold_draft_pick_value.player_name, gold_draft_pick_value.draft_year, gold_draft_pick_value.pick, silver_combine.forty, silver_combine.weight_lb, gold_draft_pick_value.probowls\nFROM workspace.nfl.gold_draft_pick_value\nJOIN workspace.nfl.silver_combine ON silver_combine.pfr_player_id = gold_draft_pick_value.pfr_player_id\nWHERE gold_draft_pick_value.round = 1 AND gold_draft_pick_value.position IN ('DE', 'OLB', 'EDGE') AND gold_draft_pick_value.probowls > 0 AND silver_combine.forty IS NOT NULL\nORDER BY silver_combine.forty"
+        ]
+      }
+    ]
+  }
+}

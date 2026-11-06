@@ -1,0 +1,350 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "26d1c7fae9b15d159547f689172b8563",
+        "question": [
+          "Which pass rushers get to the quarterback most often per snap this season?"
+        ]
+      },
+      {
+        "id": "363e010ff13355d69f2e071b0f1eb158",
+        "question": [
+          "Who is on our injury report this week and how important are they?"
+        ]
+      },
+      {
+        "id": "382faba0ce985f67883926afc18eda36",
+        "question": [
+          "Which wide receivers create the most separation this season?"
+        ]
+      },
+      {
+        "id": "e73b50bc6d485279b15ebf7d875e5bbe",
+        "question": [
+          "Which quarterbacks have played for us this season?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "workspace.nfl.gold_data_freshness",
+        "description": [
+          "How current each source is."
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_injury_report",
+        "description": [
+          "Latest official injury report with each player's role and snap share."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "report_status",
+            "description": [
+              "Out, Doubtful, Questionable, or NULL (practice listing only)."
+            ],
+            "synonyms": [
+              "status"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_player_advanced",
+        "description": [
+          "One row per player per season: box score, EPA, snap share and role, Next Gen Stats (2016+), PFR advanced (2018+, lags in-season) and play-by-play defensive credit per 100 snaps."
+        ],
+        "column_configs": [
+          {
+            "column_name": "avg_separation",
+            "description": [
+              "Next Gen Stats average separation from the nearest defender at the catch point, yards."
+            ],
+            "synonyms": [
+              "separation"
+            ]
+          },
+          {
+            "column_name": "ball_production_per_100_snaps",
+            "description": [
+              "(Passes defensed + interceptions) per 100 defensive snaps."
+            ],
+            "synonyms": [
+              "coverage"
+            ]
+          },
+          {
+            "column_name": "latest_team",
+            "description": [
+              "Team (franchise code)."
+            ],
+            "synonyms": [
+              "team"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "position",
+            "description": [
+              "e.g. QB, RB, WR, TE, DE, DT, OLB, ILB, CB, SS, FS."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "position_group",
+            "description": [
+              "QB, RB, WR, TE, OL, DL, LB, DB, SPEC. Edge rushers can be DL (DE) or LB (OLB)."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "rush_yards_over_expected_per_att",
+            "description": [
+              "Next Gen Stats rush yards over expected per carry."
+            ],
+            "synonyms": [
+              "RYOE"
+            ]
+          },
+          {
+            "column_name": "sacks_hits_per_100_snaps",
+            "description": [
+              "(Sacks + QB hits) per 100 defensive snaps, from play-by-play."
+            ],
+            "synonyms": [
+              "pressure rate",
+              "pass rush"
+            ]
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_player_snaps_season",
+        "description": [
+          "Snap counts and role per player, season and team (2013+)."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_qb_season",
+        "description": [
+          "QB efficiency per season (min 100 dropbacks): EPA per dropback, CPOE."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.silver_player_week",
+        "description": [
+          "Weekly box scores: who played which week and how."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Team that week."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "1abfadb3f21a5b6bb8f511e81c21cc95",
+        "content": [
+          "'We', 'us', 'our team' and 'my team' mean the New York Giants (team = 'NYG') unless the user names another team.",
+          "This is a general manager's assistant: lead with the answer, back it with the key numbers, and when relevant end with the decision it points to (e.g. extend, replace, target, draft). Keep it short.",
+          "'This season' = the latest season in the data. Default to the regular season. Before answering about the current season, check gold_data_freshness if available and say 'as of week N'. PFR advanced stats (pressures, coverage allowed) lag weeks behind in-season: prefer play-by-play based columns for the current season and say so if you use PFR.",
+          "Ranks are out of 32 teams: 1-8 = top tier, 9-16 = above average, 17-24 = below average, 25-32 = bottom tier. Use the tier words, never call a mid-table rank 'elite' or 'poor'.",
+          "Use player and team names exactly as stored. Never expand an abbreviated name (e.g. 'J.Dart') into a guessed first name.",
+          "Only state what the data shows. Injuries come only from the official injury report tables. The data has no trade rumors, coaching or scheme information: do not invent reasons.",
+          "Money is in $ millions of APY (average annual value) from OverTheCap, not the exact current-year cap hit. Say 'APY' when quoting it.",
+          "Round EPA to 3 decimals, rates to 1 decimal as percentages, money to 1 decimal.",
+          "Use sensible minimums so small samples don't top leaderboards: e.g. 50+ carries, 30+ targets, 150+ defensive snaps, 100+ dropbacks.",
+          "Pass rushers: include both DL and LB position groups and rank by sacks_hits_per_100_snaps."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "4a911020775e5053a1bab9fee4e7c3c9",
+        "question": [
+          "Which wide receivers create the most separation this season?"
+        ],
+        "sql": [
+          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.targets, gold_player_advanced.receiving_yards, ROUND(gold_player_advanced.avg_separation, 2) AS separation_yds, ROUND(gold_player_advanced.receiving_epa, 1) AS receiving_epa\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.position = 'WR' AND gold_player_advanced.avg_separation IS NOT NULL\nORDER BY gold_player_advanced.avg_separation DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "61c735c0353651c998edaa6b8ae11b24",
+        "question": [
+          "Which quarterbacks have played for us this season and in which weeks?"
+        ],
+        "sql": [
+          "SELECT silver_player_week.player_name, MIN(silver_player_week.week) AS first_week, MAX(silver_player_week.week) AS last_week, COUNT(*) AS games, SUM(silver_player_week.attempts) AS attempts, ROUND(SUM(silver_player_week.passing_epa), 1) AS passing_epa\nFROM workspace.nfl.silver_player_week\nWHERE silver_player_week.season = (SELECT MAX(season) FROM workspace.nfl.silver_player_week) AND silver_player_week.season_type = 'REG'\n  AND silver_player_week.team = 'NYG' AND silver_player_week.position = 'QB' AND silver_player_week.attempts > 0\nGROUP BY silver_player_week.player_name\nORDER BY first_week"
+        ]
+      },
+      {
+        "id": "e239cc2e00e45c80bef0447b40623674",
+        "question": [
+          "Which pass rushers get to the quarterback most often per snap this season?"
+        ],
+        "sql": [
+          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.position, gold_player_advanced.defense_snaps, gold_player_advanced.sacks_plus_hits, ROUND(gold_player_advanced.sacks_hits_per_100_snaps, 1) AS sacks_hits_per_100_snaps\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.position_group IN ('DL', 'LB') AND gold_player_advanced.defense_snaps >= 150\nORDER BY gold_player_advanced.sacks_hits_per_100_snaps DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "eed42c29f15f5adabd91a5ff60c33728",
+        "question": [
+          "Who is on our injury report this week and how important are they?"
+        ],
+        "sql": [
+          "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.report_status, gold_injury_report.injury, gold_injury_report.practice_status, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.week\nFROM workspace.nfl.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE gold_injury_report.report_status WHEN 'Out' THEN 1 WHEN 'Doubtful' THEN 2 WHEN 'Questionable' THEN 3 ELSE 4 END, gold_injury_report.snap_share DESC"
+        ]
+      },
+      {
+        "id": "ffdc3a91cde95bdd8a374d2355e445a5",
+        "question": [
+          "Which running backs have the best rush yards over expected per carry this season (minimum 50 carries)?"
+        ],
+        "sql": [
+          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.carries, gold_player_advanced.rushing_yards, ROUND(gold_player_advanced.rush_yards_over_expected_per_att, 2) AS ryoe_per_att, ROUND(100 * gold_player_advanced.stacked_box_rate, 1) AS stacked_box_pct\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.carries >= 50 AND gold_player_advanced.rush_yards_over_expected_per_att IS NOT NULL\nORDER BY gold_player_advanced.rush_yards_over_expected_per_att DESC\nLIMIT 10"
+        ]
+      }
+    ]
+  }
+}
