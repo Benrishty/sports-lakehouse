@@ -7,10 +7,11 @@ literal, filtered to the team codes that use it (e.g. LV + OAK). Teams with no l
 text label.
 
     pip install pillow
-    python scripts/build_logo_scatter.py            # writes src/dashboards/offense_defense_logos.vl.json
+    python scripts/build_logo_scatter.py
 
-In the dashboard: add a widget on the `team_season` dataset → Advanced → Custom Viz, add the Fields
-team, record, net_epa, offense_epa, defense_epa (names exactly as written), paste the spec.
+Writes src/dashboards/offense_defense_logos.vl.json (the raw Vega-Lite, for pasting into Advanced → Custom
+Viz by hand) and replaces the `off_vs_def` widget in src/dashboards/nfl_efficiency.lvdash.json with a
+`custom-vega-viz` widget wrapping it. Deploy with `databricks bundle deploy`.
 """
 import base64
 import io
@@ -22,7 +23,11 @@ from pathlib import Path
 from PIL import Image
 
 TEAMS_URL = "https://github.com/nflverse/nflverse-data/releases/download/teams/teams_colors_logos.csv"
-OUT = Path(__file__).resolve().parent.parent / "src/dashboards/offense_defense_logos.vl.json"
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "src/dashboards/offense_defense_logos.vl.json"
+DASHBOARD = ROOT / "src/dashboards/nfl_efficiency.lvdash.json"
+WIDGET = "off_vs_def"
+FIELDS = ["team", "record", "net_epa", "offense_epa", "defense_epa"]
 LOGO_PX = 64            # stored size; rendered at LOGO_DRAW px
 LOGO_DRAW = 30
 MAX_DATA_URI = 37 * 1024  # AI/BI limit per image
@@ -95,15 +100,53 @@ def main() -> None:
                    "encoding": {**xy, "tooltip": tooltip}})
 
     spec = {
-        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
         "description": "NFL offense vs. defense EPA per play, one logo per team. Top-right = good at both.",
         "data": {"name": "databricks_query"},
         "width": "container",
         "height": "container",
+        "config": {"autosize": {"type": "fit", "contains": "padding"}},
         "layer": layers,
     }
     OUT.write_text(json.dumps(spec, separators=(",", ":")) + "\n")
     print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KB, {len(codes_by_logo)} logos, {len(all_codes)} team codes)")
+    patch_dashboard(spec)
+
+
+def patch_dashboard(spec: dict) -> None:
+    """Swap the dashboard's scatter widget for a custom-vega-viz widget carrying `spec`.
+
+    Wrapper contract (databricks/databricks-agent-skills, aibi-dashboards custom visualizations):
+    widgetType custom-vega-viz, version 1, jsonSpec.spec is a JSON *string*, every field the spec
+    reads is listed in query.fields[].name, spec.encodings.fields[].fieldName and the Vega-Lite spec.
+    """
+    dash = json.loads(DASHBOARD.read_text())
+    for page in dash["pages"]:
+        for entry in page["layout"]:
+            w = entry["widget"]
+            if w.get("name") != WIDGET:
+                continue
+            dataset = w["queries"][0]["query"]["datasetName"]
+            title = w["spec"].get("frame", {})
+            entry["widget"] = {
+                "name": WIDGET,
+                "queries": [{"name": "main_query", "query": {
+                    "datasetName": dataset,
+                    "fields": [{"name": f, "expression": f"`{f}`"} for f in FIELDS],
+                    "disaggregated": True}}],
+                "spec": {
+                    "version": 1,
+                    "widgetType": "custom-vega-viz",
+                    "data": {"queryName": "main_query"},
+                    "encodings": {"fields": [{"fieldName": f} for f in FIELDS]},
+                    "jsonSpec": {"type": "vega-lite", "spec": json.dumps(spec, separators=(",", ":"))},
+                    "frame": title,
+                },
+            }
+            DASHBOARD.write_text(json.dumps(dash, indent=2) + "\n")
+            print(f"patched widget {WIDGET!r} in {DASHBOARD.name}")
+            return
+    raise SystemExit(f"widget {WIDGET!r} not found in {DASHBOARD}")
 
 
 if __name__ == "__main__":
