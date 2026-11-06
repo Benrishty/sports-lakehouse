@@ -56,6 +56,50 @@ Unity Catalog lineage for `gold_team_season`, captured automatically from the pi
 
 ![Unity Catalog lineage](docs/lineage.png)
 
+## The GM layer
+
+The second half of the project asks what a general manager needs to improve a roster, then builds it:
+where the team is weak, who is worth their contract, how the cap is spread, how well the team drafts,
+and what injuries are costing it.
+
+**More sources, one model.** Thirteen more nflverse feeds: OverTheCap contracts, draft picks (2000+),
+the combine, snap counts (2013+), official injury reports (2009+), Next Gen Stats (2016+), Pro Football
+Reference advanced stats (2018+) and FTN charting (2022+). They use three different player ids (NFL gsis,
+PFR, OverTheCap), so `silver_players` carries all of them as the crosswalk. Every source's team codes,
+including PFR-style `GNB`/`KAN` and nicknames like "Giants", map to one franchise code.
+
+| GM question | Gold mart |
+|---|---|
+| Where are we weak? | `gold_team_report_card`: 26 metrics by unit and phase, with direction-aware league rank, percentile and tier |
+| Who is worth their contract? | `gold_player_value`: APY vs. production *within position group*, as a value score (bargain to overpaid) |
+| How is our money spread? | `gold_cap_allocation`: share of team APY by position group vs. the league and the top-8 teams |
+| How good is each player? | `gold_player_advanced`: box score, EPA, snap role, Next Gen Stats, PFR and play-by-play defensive credit |
+| How well do we draft? | `gold_draft_pick_value`, `gold_draft_team_grades`, `gold_draft_position_value`: AV vs. the expected value of the pick slot |
+| Where do we pick? | `gold_draft_order_projection` |
+| What are injuries costing us? | `gold_injury_report`, `gold_team_injury_impact` (starter-games lost) |
+| How current is this? | `gold_data_freshness` |
+
+**GM Office dashboard** (`src/dashboards/gm_office.lvdash.json`): Report Card, Roster & Cap,
+Personnel, Draft and Health pages behind one dashboard-wide Team picker. League-wide datasets name
+their team column `club`, so the picker leaves them whole.
+
+**Specialized Genie agents** (`genie/agents/`): a Team Performance Analyst, a Roster & Cap Strategist,
+a Personnel Scout and a Draft & Development agent. Each sees only the tables for its domain, and each
+shares one set of accuracy rules: exact names, rank tiers out of 32, "as of week N", and no causes the
+data doesn't contain. They come with 22 example queries, each run against the warehouse first.
+
+Decisions worth calling out:
+- **Stale sources are caught, not trusted.** The in-season PFR file stopped at week 3, so a $28M edge
+  rusher showed 5 pressures. Current-season defensive value now comes from play-by-play credit (sacks,
+  QB hits, passes defensed, interceptions per 100 snaps), and `gold_data_freshness` states each source's lag.
+- **Don't score what the data can't measure.** No source has individual blocking grades, so offensive
+  linemen get no value score instead of a fake one based on snap share.
+- **Testing the AI changed the data model.** A Genie answer about "defense" filtered `phase = 'Defense'`
+  and missed the pass rush (#31). The report card gained a `unit` column, and the answer is now right.
+  Earlier Genie tests similarly moved `luck_gap` into gold and fixed a relocated-franchise join.
+- **APY, not cap hit.** OverTheCap's contract file gives average annual value. Every surface labels it
+  APY rather than calling it the cap.
+
 ## Design decisions
 
 **The source republishes, so land snapshots and let CDC dedupe.** nflverse rewrites the entire
