@@ -55,12 +55,12 @@
             "enable_entity_matching": true
           },
           {
-            "column_name": "report_status",
+            "column_name": "status",
             "description": [
-              "Out, Doubtful, Questionable, or NULL (practice listing only)."
+              "injured reserve, PUP, NFI (from roster status) or Out / Doubtful / Questionable / practice report only."
             ],
             "synonyms": [
-              "status"
+              "injury status"
             ],
             "enable_format_assistance": true,
             "enable_entity_matching": true
@@ -333,7 +333,7 @@
           "Who is on our injury report this week and how important are they?"
         ],
         "sql": [
-          "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.report_status, gold_injury_report.injury, gold_injury_report.practice_status, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.week\nFROM workspace.nfl.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE gold_injury_report.report_status WHEN 'Out' THEN 1 WHEN 'Doubtful' THEN 2 WHEN 'Questionable' THEN 3 ELSE 4 END, gold_injury_report.snap_share DESC"
+          "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.status, gold_injury_report.injury, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.games_missed_injured, gold_injury_report.week\nFROM workspace.nfl.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE WHEN gold_injury_report.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN gold_injury_report.status = 'Out' THEN 2 WHEN gold_injury_report.status = 'Doubtful' THEN 3 WHEN gold_injury_report.status = 'Questionable' THEN 4 ELSE 5 END, gold_injury_report.snap_share DESC"
         ]
       },
       {

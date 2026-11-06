@@ -28,7 +28,7 @@
  "roster_cap": [
   [
    "Who are our most overpaid players right now?",
-   "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.final_season, ROUND(100 * gold_player_value.snap_share) AS snap_pct, gold_player_value.production_metric_name, ROUND(gold_player_value.production_metric, 2) AS production, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score ASC\nLIMIT 10"
+   "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.performance_tier, gold_player_value.contract_verdict, ROUND(100 * gold_player_value.value_score) AS value_score, gold_player_value.production_metric_name, ROUND(gold_player_value.production_metric, 2) AS production, gold_player_value.production_basis, gold_player_value.games_played, gold_player_value.games_missed_injured, gold_player_value.current_roster_status\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score ASC\nLIMIT 10"
   ],
   [
    "Which of our starters have contracts ending after this season?",
@@ -62,7 +62,7 @@
   ],
   [
    "Who is on our injury report this week and how important are they?",
-   "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.report_status, gold_injury_report.injury, gold_injury_report.practice_status, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.week\nFROM workspace.nfl.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE gold_injury_report.report_status WHEN 'Out' THEN 1 WHEN 'Doubtful' THEN 2 WHEN 'Questionable' THEN 3 ELSE 4 END, gold_injury_report.snap_share DESC"
+   "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.status, gold_injury_report.injury, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.games_missed_injured, gold_injury_report.week\nFROM workspace.nfl.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE WHEN gold_injury_report.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN gold_injury_report.status = 'Out' THEN 2 WHEN gold_injury_report.status = 'Doubtful' THEN 3 WHEN gold_injury_report.status = 'Questionable' THEN 4 ELSE 5 END, gold_injury_report.snap_share DESC"
   ],
   [
    "Which quarterbacks have played for us this season and in which weeks?",

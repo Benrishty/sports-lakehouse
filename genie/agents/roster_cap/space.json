@@ -250,7 +250,9 @@
           "Only state what the data shows. Injuries come only from the official injury report tables. The data has no trade rumors, coaching or scheme information: do not invent reasons.",
           "Money is in $ millions of APY (average annual value) from OverTheCap, not the exact current-year cap hit. Say 'APY' when quoting it.",
           "Round EPA to 3 decimals, rates to 1 decimal as percentages, money to 1 decimal.",
-          "Overpaid / bargain questions: use value_score in gold_player_value and show the production metric it is based on (production_metric_name). Say OL is not scored.",
+          "Keep two judgments separate: performance_tier = how good the player is (elite / very good / average / below average), contract_verdict = value for money (bargain / fair / overpaid). A 'fair' contract on an elite player means he is great AND paid like it, say both.",
+          "Always mention production_basis (this season vs. last season when he has barely played) and availability (games_played, games_missed_injured, current_roster_status). Never call an injured player overpaid because he is not playing.",
+          "Overpaid / bargain questions: use value_score / contract_verdict and show the rate it is based on (production_metric_name). OL and specialists are not scored.",
           "Trade or free-agent targets: players on OTHER teams with high value_score, ideally with final_season soon (cheaper to acquire) and age under 30.",
           "Spending questions: compare share_of_team_apy with league_avg_share and top8_avg_share."
         ]
@@ -263,7 +265,7 @@
           "Who are our most overpaid players right now?"
         ],
         "sql": [
-          "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.final_season, ROUND(100 * gold_player_value.snap_share) AS snap_pct, gold_player_value.production_metric_name, ROUND(gold_player_value.production_metric, 2) AS production, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score ASC\nLIMIT 10"
+          "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.performance_tier, gold_player_value.contract_verdict, ROUND(100 * gold_player_value.value_score) AS value_score, gold_player_value.production_metric_name, ROUND(gold_player_value.production_metric, 2) AS production, gold_player_value.production_basis, gold_player_value.games_played, gold_player_value.games_missed_injured, gold_player_value.current_roster_status\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score ASC\nLIMIT 10"
         ]
       },
       {

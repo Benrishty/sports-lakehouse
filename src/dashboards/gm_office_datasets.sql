@@ -53,14 +53,20 @@ ORDER BY c.share_of_team_apy DESC;
 -- @gm_roster_value
 SELECT v.team, v.headshot_url, v.player_name, v.position_group, v.age,
        ROUND(v.apy_m, 1) AS apy_m, ROUND(v.guaranteed_m, 1) AS guaranteed_m, v.final_season,
-       v.role, ROUND(100 * v.snap_share) AS snap_pct, v.production_metric_name,
-       ROUND(v.production_metric, 2) AS production, ROUND(100 * v.value_score) AS value_score,
-       CASE WHEN v.value_score >= 0.25 THEN '💰 bargain' WHEN v.value_score <= -0.25 THEN '⚠️ overpaid'
-            WHEN v.value_score IS NULL THEN '' ELSE 'fair' END AS verdict
+       CONCAT(COALESCE(v.games_played, 0), ' of ', COALESCE(v.team_games_on_roster, 0)) AS games,
+       CASE WHEN v.current_roster_status IN ('injured reserve', 'PUP', 'NFI') THEN CONCAT('🩹 ', v.current_roster_status)
+            WHEN v.games_missed_injured > 0 THEN CONCAT('missed ', v.games_missed_injured, ' (injury)') ELSE '' END AS availability,
+       v.production_metric_name, ROUND(v.production_metric, 2) AS production,
+       CASE v.performance_tier WHEN 'elite' THEN '⭐ elite' WHEN 'very good' THEN '🟢 very good'
+            WHEN 'average' THEN '🟡 average' WHEN 'below average' THEN '🔴 below average' ELSE '' END AS performance,
+       CASE v.contract_verdict WHEN 'bargain' THEN '💰 bargain' WHEN 'overpaid' THEN '⚠️ overpaid'
+            WHEN 'fair' THEN 'paid fairly' ELSE '' END AS contract,
+       ROUND(100 * v.value_score) AS value_score,
+       CASE WHEN v.production_basis LIKE 'last season%' THEN 'last season' WHEN v.production_basis = 'this season' THEN 'this season'
+            ELSE 'not scored' END AS judged_on
 FROM workspace.nfl.gold_player_value v
 WHERE v.team IS NOT NULL
 ORDER BY v.apy_m DESC;
-
 -- @gm_expiring
 SELECT v.team, v.headshot_url, v.player_name, v.position_group, v.age, ROUND(v.apy_m, 1) AS apy_m,
        v.final_season, v.role, ROUND(100 * v.snap_share) AS snap_pct, ROUND(100 * v.value_score) AS value_score
@@ -119,15 +125,15 @@ WHERE round <= 3 AND picks >= 15
 ORDER BY round, hit_rate DESC;
 
 -- @gm_injuries
-SELECT i.team, i.headshot_url, i.player_name, i.position, COALESCE(i.report_status, 'Limited/none') AS status, i.injury,
-       i.practice_status, i.role, ROUND(100 * i.snap_share) AS snap_pct, ROUND(i.apy_m, 1) AS apy_m, i.week
+SELECT i.team, i.headshot_url, i.player_name, i.position, i.status, i.injury, i.role,
+       ROUND(100 * i.snap_share) AS snap_pct, i.games_played, i.games_missed_injured, i.last_week_played,
+       ROUND(i.apy_m, 1) AS apy_m, i.week
 FROM workspace.nfl.gold_injury_report i
-ORDER BY CASE i.report_status WHEN 'Out' THEN 1 WHEN 'Doubtful' THEN 2 WHEN 'Questionable' THEN 3 ELSE 4 END,
-         i.snap_share DESC NULLS LAST;
-
+ORDER BY CASE WHEN i.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN i.status = 'Out' THEN 2 WHEN i.status = 'Doubtful' THEN 3
+              WHEN i.status = 'Questionable' THEN 4 ELSE 5 END, i.snap_share DESC NULLS LAST;
 -- @gm_injury_league
 SELECT x.team AS club, x.starter_games_out, x.starters_missing_time, x.player_games_out,
-       ROUND(x.starter_apy_affected_m, 1) AS starter_apy_affected_m, x.rank_fewest_starter_games_lost
+       x.rank_fewest_starter_games_lost
 FROM workspace.nfl.gold_team_injury_impact x
 WHERE x.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_injury_impact)
 ORDER BY x.starter_games_out DESC;

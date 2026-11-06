@@ -41,6 +41,9 @@ DATASETS = {
     "snap_counts": (NFLVERSE + "/snap_counts/snap_counts_{season}.parquet", "snap_counts_{season}.parquet", "bronze_snap_counts", 2012),
     "injuries": (NFLVERSE + "/injuries/injuries_{season}.parquet", "injuries_{season}.parquet", "bronze_injuries", 2009),
     "ftn_charting": (NFLVERSE + "/ftn_charting/ftn_charting_{season}.parquet", "ftn_charting_{season}.parquet", "bronze_ftn_charting", 2022),
+    # weekly roster status: ACT / RES (injured reserve, PUP, NFI) / INA / DEV (practice squad). The weekly injury
+    # report drops players once they go on IR, so this is the source of truth for availability.
+    "roster_week": (NFLVERSE + "/weekly_rosters/roster_weekly_{season}.parquet", "roster_weekly_{season}.parquet", "bronze_roster_week", 2002),
     # schedules and dimensions
     "games": (NFLVERSE + "/schedules/games.parquet", "games.parquet", "bronze_games", None),
     "teams": (NFLVERSE + "/teams/teams_colors_logos.parquet", "teams_colors_logos.parquet", "bronze_teams", None),

@@ -234,9 +234,50 @@ LEFT JOIN pfr_rec pc ON pc.season = g.season AND pc.pfr_player_id = pl.pfr_id
 LEFT JOIN pfr_def pd ON pd.season = g.season AND pd.pfr_player_id = pl.pfr_id
 LEFT JOIN gold_player_defense_pbp dp ON dp.season = g.season AND dp.player_id = g.player_id;
 
--- ---------------------------------------------------------------- player value (active contracts × current season)
+-- ---------------------------------------------------------------- availability (player × week, 2013+)
+CREATE OR REFRESH MATERIALIZED VIEW gold_player_availability_week
+COMMENT "One row per player per regular-season game week of his team, 2013+: did he play (any snaps), his roster status (active, inactive, injured reserve, PUP, NFI) and injury report status, and whether the week was missed through injury (did not play AND on IR/PUP/NFI or listed Out/Doubtful). The weekly injury report omits players on IR, so roster status is required to count serious injuries."
+AS
+WITH roster AS (
+  SELECT season, week, team, player_id, availability
+  FROM silver_roster_week WHERE game_type = 'REG' AND season >= 2013 AND availability <> 'practice squad'
+),
+snaps AS (
+  SELECT s.season, s.week, s.team, p.player_id, s.offense_snaps + s.defense_snaps + s.st_snaps AS snaps
+  FROM silver_snap_counts s JOIN silver_players p ON p.pfr_id = s.pfr_player_id
+  WHERE s.game_type = 'REG'
+),
+report AS (
+  SELECT season, week, team, player_id, report_status, report_primary_injury
+  FROM silver_injuries WHERE season_type = 'REG'
+)
+SELECT r.season, r.week, r.team, r.player_id, r.availability, rp.report_status, rp.report_primary_injury AS injury,
+  COALESCE(s.snaps, 0) > 0 AS played,
+  COALESCE(s.snaps, 0) = 0 AND (r.availability IN ('injured reserve', 'PUP', 'NFI') OR rp.report_status IN ('Out', 'Doubtful')) AS missed_injured
+FROM roster r
+LEFT JOIN snaps s ON s.season = r.season AND s.week = r.week AND s.team = r.team AND s.player_id = r.player_id
+LEFT JOIN report rp ON rp.season = r.season AND rp.week = r.week AND rp.team = r.team AND rp.player_id = r.player_id;
+
+-- ---------------------------------------------------------------- availability (player × season)
+CREATE OR REFRESH MATERIALIZED VIEW gold_player_availability
+COMMENT "One row per player per regular season, 2013+: team games on his roster, games played, games missed through injury (IR / PUP / NFI or listed Out/Doubtful and did not play), other games missed (healthy scratch or coach's decision), last week played, and current status (latest roster status and latest injury)."
+AS
+SELECT season, player_id,
+  MAX_BY(team, week) AS team,
+  COUNT(*) AS team_games_on_roster,
+  SUM(IF(played, 1, 0)) AS games_played,
+  SUM(IF(missed_injured, 1, 0)) AS games_missed_injured,
+  SUM(IF(NOT played AND NOT missed_injured, 1, 0)) AS games_missed_other,
+  MAX(IF(played, week, NULL)) AS last_week_played,
+  MAX_BY(availability, week) AS current_roster_status,
+  MAX_BY(injury, IF(injury IS NOT NULL, week, NULL)) AS latest_injury,
+  SUM(IF(played, 1, 0)) / COUNT(*) AS availability_rate
+FROM gold_player_availability_week
+GROUP BY season, player_id;
+
+-- ---------------------------------------------------------------- player value (active contracts)
 CREATE OR REFRESH MATERIALIZED VIEW gold_player_value
-COMMENT "One row per player on an active contract: team, contract (APY $M, guarantees, final season, years left), age, current-season role and production, and a value score = production percentile minus cost percentile WITHIN the position group (players with >= 25% snap share). Positive = outperforming the contract (bargain), negative = overpaid relative to peers. Production metric by group (all from weekly-updated play-by-play and box scores): QB EPA/dropback, RB rushing+receiving EPA, WR/TE receiving EPA, EDGE/IDL sacks + QB hits per 100 defensive snaps, LB tackles per 100 snaps, CB/S passes defensed + interceptions per 100 snaps. OL and K/P/LS are not scored (no individual blocking data in the sources)."
+COMMENT "One row per player on an active contract. Two separate judgments: performance_tier (how good: production percentile within the position group, elite / very good / average / below average) and contract_verdict (value for money: value_score = production percentile minus cost (APY) percentile, bargain >= +0.25, overpaid <= -0.25, otherwise fair). Production is a rate so missed games do not count against a player: QB EPA per dropback, RB rush+receiving EPA per game played, WR/TE receiving EPA per game played, EDGE/IDL sacks + QB hits per 100 defensive snaps, LB tackles per 100 snaps, CB/S passes defensed + interceptions per 100 snaps. Minimum sample: 4+ games and 25%+ snap share (QBs 100+ dropbacks) this season, otherwise last season is used (production_basis says which) and otherwise the player is not scored. OL and specialists are not scored (no individual blocking data). Availability (games played, missed through injury, current IR status) comes from weekly roster status."
 AS
 WITH cur AS (SELECT MAX(season) AS season FROM silver_plays),
 c AS (
@@ -252,6 +293,36 @@ c AS (
     FROM silver_contracts WHERE is_active
   ) c WHERE c.rn = 1
 ),
+-- production rate per contracted player for this season and last season, with the sample requirement
+perf AS (
+  SELECT a.season, c.player_id, c.position_group,
+    CASE c.position_group
+      WHEN 'QB' THEN q.epa_per_dropback
+      WHEN 'RB' THEN (COALESCE(a.rushing_epa, 0) + COALESCE(a.receiving_epa, 0)) / NULLIF(a.games, 0)
+      WHEN 'WR' THEN a.receiving_epa / NULLIF(a.games, 0)
+      WHEN 'TE' THEN a.receiving_epa / NULLIF(a.games, 0)
+      WHEN 'EDGE' THEN a.sacks_hits_per_100_snaps
+      WHEN 'IDL' THEN a.sacks_hits_per_100_snaps
+      WHEN 'LB' THEN a.tackles_per_100_snaps
+      WHEN 'CB' THEN a.ball_production_per_100_snaps
+      WHEN 'S' THEN a.ball_production_per_100_snaps
+    END AS rate,
+    CASE WHEN c.position_group = 'QB' THEN q.dropbacks >= 100
+         ELSE a.games >= 4 AND a.snap_share >= 0.25 END AS qualifies
+  FROM c CROSS JOIN cur
+  JOIN gold_player_advanced a ON a.player_id = c.player_id AND a.season IN (cur.season, cur.season - 1)
+  LEFT JOIN gold_qb_season q ON q.season = a.season AND q.player_id = c.player_id
+  WHERE c.position_group NOT IN ('OL', 'ST')
+),
+-- production percentile within position group, against that SAME season's qualified pool
+perf_pct AS (
+  SELECT *, PERCENT_RANK() OVER (PARTITION BY season, position_group ORDER BY rate) AS production_pct
+  FROM perf WHERE qualifies AND rate IS NOT NULL
+),
+chosen AS (  -- this season if the sample qualifies, otherwise last season
+  SELECT p.*, ROW_NUMBER() OVER (PARTITION BY p.player_id ORDER BY p.season DESC) AS pick
+  FROM perf_pct p
+),
 base AS (
   SELECT
     cur.season, c.player_id, COALESCE(pl.player_name, c.player_name) AS player_name, c.position, c.position_group,
@@ -261,39 +332,39 @@ base AS (
     c.final_season - cur.season AS years_left_after_this_season,
     a.games, a.snap_share, a.role,
     a.passing_epa, a.rushing_epa, a.receiving_epa, a.sacks, a.sacks_plus_hits, a.tackles, a.passes_defensed,
-    a.pbp_interceptions, q.epa_per_dropback,
-    CASE c.position_group
-      WHEN 'QB' THEN q.epa_per_dropback
-      WHEN 'RB' THEN COALESCE(a.rushing_epa, 0) + COALESCE(a.receiving_epa, 0)
-      WHEN 'WR' THEN a.receiving_epa
-      WHEN 'TE' THEN a.receiving_epa
-      WHEN 'EDGE' THEN a.sacks_hits_per_100_snaps
-      WHEN 'IDL' THEN a.sacks_hits_per_100_snaps
-      WHEN 'LB' THEN a.tackles_per_100_snaps
-      WHEN 'CB' THEN a.ball_production_per_100_snaps
-      WHEN 'S' THEN a.ball_production_per_100_snaps
-    END AS production_metric
+    a.pbp_interceptions,
+    av.team_games_on_roster, av.games_played, av.games_missed_injured, av.games_missed_other,
+    av.last_week_played, av.current_roster_status, av.latest_injury,
+    ch.rate AS production_metric, ch.production_pct, ch.season AS production_season,
+    CASE WHEN c.position_group IN ('OL', 'ST') THEN 'not scored (no individual data for this position)'
+         WHEN ch.season = cur.season THEN 'this season'
+         WHEN ch.season IS NOT NULL THEN CONCAT('last season (', ch.season, '): too small a sample this season')
+         ELSE 'not scored (too small a sample this season and last)' END AS production_basis
   FROM c CROSS JOIN cur
   LEFT JOIN silver_players pl ON pl.player_id = c.player_id
   LEFT JOIN gold_player_advanced a ON a.season = cur.season AND a.player_id = c.player_id
-  LEFT JOIN gold_qb_season q ON q.season = cur.season AND q.player_id = c.player_id
+  LEFT JOIN gold_player_availability av ON av.season = cur.season AND av.player_id = c.player_id
+  LEFT JOIN chosen ch ON ch.player_id = c.player_id AND ch.pick = 1
 ),
-scored AS (
-  SELECT *,
-    PERCENT_RANK() OVER (PARTITION BY position_group ORDER BY production_metric) AS production_pct,
-    PERCENT_RANK() OVER (PARTITION BY position_group ORDER BY apy_m) AS cost_pct
-  FROM base
-  WHERE production_metric IS NOT NULL AND snap_share >= 0.25 AND position_group <> 'ST'
+priced AS (
+  SELECT player_id, PERCENT_RANK() OVER (PARTITION BY position_group ORDER BY apy_m) AS cost_pct
+  FROM base WHERE production_pct IS NOT NULL
 )
 SELECT b.*,
-  CASE b.position_group WHEN 'QB' THEN 'EPA per dropback' WHEN 'RB' THEN 'Rush + receiving EPA'
-       WHEN 'WR' THEN 'Receiving EPA' WHEN 'TE' THEN 'Receiving EPA' WHEN 'OL' THEN 'Not scored: no individual blocking data'
+  CASE b.position_group WHEN 'QB' THEN 'EPA per dropback' WHEN 'RB' THEN 'Rush + receiving EPA per game'
+       WHEN 'WR' THEN 'Receiving EPA per game' WHEN 'TE' THEN 'Receiving EPA per game'
        WHEN 'EDGE' THEN 'Sacks + QB hits per 100 snaps' WHEN 'IDL' THEN 'Sacks + QB hits per 100 snaps'
        WHEN 'LB' THEN 'Tackles per 100 snaps'
-       WHEN 'CB' THEN 'Passes defensed + INT per 100 snaps' WHEN 'S' THEN 'Passes defensed + INT per 100 snaps' END AS production_metric_name,
-  s.production_pct, s.cost_pct, s.production_pct - s.cost_pct AS value_score
+       WHEN 'CB' THEN 'Passes defensed + INT per 100 snaps' WHEN 'S' THEN 'Passes defensed + INT per 100 snaps'
+       ELSE 'Not scored' END AS production_metric_name,
+  CASE WHEN b.production_pct >= 0.9 THEN 'elite' WHEN b.production_pct >= 0.7 THEN 'very good'
+       WHEN b.production_pct >= 0.4 THEN 'average' WHEN b.production_pct IS NOT NULL THEN 'below average' END AS performance_tier,
+  p.cost_pct,
+  b.production_pct - p.cost_pct AS value_score,
+  CASE WHEN b.production_pct IS NULL THEN NULL WHEN b.production_pct - p.cost_pct >= 0.25 THEN 'bargain'
+       WHEN b.production_pct - p.cost_pct <= -0.25 THEN 'overpaid' ELSE 'fair' END AS contract_verdict
 FROM base b
-LEFT JOIN scored s ON s.player_id = b.player_id;
+LEFT JOIN priced p ON p.player_id = b.player_id;
 
 -- ---------------------------------------------------------------- cap allocation (team × position group)
 CREATE OR REFRESH MATERIALIZED VIEW gold_cap_allocation
@@ -372,43 +443,51 @@ WHERE season = (SELECT MAX(season) FROM gold_standings);
 
 -- ---------------------------------------------------------------- injury report (latest week)
 CREATE OR REFRESH MATERIALIZED VIEW gold_injury_report
-COMMENT "The latest official injury report of the current season: player, team, game status (Out / Doubtful / Questionable / none), injury, practice status, plus the player's season role, snap share and contract APY so a GM can see what is actually missing."
+COMMENT "Who is hurt right now: the latest week of the current season, combining players on injured reserve / PUP / NFI (from weekly roster status, which the official report omits) with the official injury report (Out / Doubtful / Questionable / practice listings). Includes the player's role (this season, or last season if he has barely played), games missed through injury and contract APY."
 AS
-WITH latest AS (
-  SELECT MAX(season) AS season FROM silver_injuries
-),
-wk AS (SELECT MAX(i.week) AS week FROM silver_injuries i JOIN latest l ON i.season = l.season WHERE i.season_type = 'REG')
-SELECT i.season, i.week, i.team, i.player_id, COALESCE(pl.player_name, i.player_name) AS player_name, i.position,
-  i.report_status, i.report_primary_injury AS injury, i.practice_status,
-  pl.headshot_url, a.role, a.snap_share, a.games, v.apy_m
-FROM silver_injuries i
-JOIN latest l ON i.season = l.season
-JOIN wk ON i.week = wk.week
-LEFT JOIN silver_players pl ON pl.player_id = i.player_id
-LEFT JOIN gold_player_advanced a ON a.season = i.season AND a.player_id = i.player_id
-LEFT JOIN gold_player_value v ON v.player_id = i.player_id
-WHERE i.season_type = 'REG';
+WITH cur AS (SELECT MAX(season) AS season FROM gold_player_availability_week),
+wk AS (SELECT MAX(w.week) AS week FROM gold_player_availability_week w JOIN cur ON w.season = cur.season),
+role AS (
+  SELECT player_id, MAX_BY(role, season) AS role, MAX_BY(snap_share, season) AS snap_share
+  FROM gold_player_advanced
+  WHERE season >= (SELECT season FROM cur) - 1 AND role IS NOT NULL AND games >= 3
+  GROUP BY player_id
+)
+SELECT w.season, w.week, w.team, w.player_id, COALESCE(pl.player_name, w.player_id) AS player_name, pl.position,
+  CASE WHEN w.availability IN ('injured reserve', 'PUP', 'NFI') THEN w.availability
+       ELSE COALESCE(w.report_status, 'practice report only') END AS status,
+  COALESCE(w.injury, av.latest_injury) AS injury,
+  pl.headshot_url, r.role, r.snap_share, av.games_played, av.games_missed_injured, av.last_week_played, v.apy_m
+FROM gold_player_availability_week w
+JOIN cur ON w.season = cur.season
+JOIN wk ON w.week = wk.week
+LEFT JOIN silver_players pl ON pl.player_id = w.player_id
+LEFT JOIN gold_player_availability av ON av.season = w.season AND av.player_id = w.player_id
+LEFT JOIN role r ON r.player_id = w.player_id
+LEFT JOIN gold_player_value v ON v.player_id = w.player_id
+WHERE w.availability IN ('injured reserve', 'PUP', 'NFI') OR w.report_status IS NOT NULL OR w.injury IS NOT NULL;
 
 -- ---------------------------------------------------------------- starter games lost (team × season)
 CREATE OR REFRESH MATERIALIZED VIEW gold_team_injury_impact
-COMMENT "Games missed through injury per team per regular season (2013+, when snap roles exist): weeks a player was listed Out on the official report, total and for players whose season role was 'starter' (>= 60% snap share when playing), with the contract APY of starters affected this season, and league rank (1 = fewest starter games lost)."
+COMMENT "Games lost to injury per team per regular season (2013+): player-games and starter-games missed through injury (did not play while on IR / PUP / NFI or listed Out/Doubtful). A starter is a player with 60%+ snap share when playing that season, or last season if he barely played this one. Includes the contract APY of currently injured starters and a league rank (1 = fewest starter games lost)."
 AS
-WITH out_weeks AS (
-  SELECT i.season, i.team, i.player_id, COUNT(DISTINCT i.week) AS weeks_out
-  FROM silver_injuries i
-  WHERE i.season_type = 'REG' AND i.report_status = 'Out' AND i.season >= 2013
-  GROUP BY i.season, i.team, i.player_id
+WITH role AS (
+  SELECT season, player_id, role FROM gold_player_advanced WHERE role IS NOT NULL AND games >= 3
+),
+w AS (
+  SELECT w.season, w.team, w.player_id, w.missed_injured,
+    COALESCE(r.role, rp.role) AS role
+  FROM gold_player_availability_week w
+  LEFT JOIN role r ON r.season = w.season AND r.player_id = w.player_id
+  LEFT JOIN role rp ON rp.season = w.season - 1 AND rp.player_id = w.player_id
 )
-SELECT o.season, o.team,
-  SUM(o.weeks_out) AS player_games_out,
-  SUM(IF(a.role = 'starter', o.weeks_out, 0)) AS starter_games_out,
-  COUNT(DISTINCT IF(a.role = 'starter', o.player_id, NULL)) AS starters_missing_time,
-  SUM(IF(a.role = 'starter', v.apy_m, 0)) AS starter_apy_affected_m,
-  RANK() OVER (PARTITION BY o.season ORDER BY SUM(IF(a.role = 'starter', o.weeks_out, 0))) AS rank_fewest_starter_games_lost
-FROM out_weeks o
-LEFT JOIN gold_player_advanced a ON a.season = o.season AND a.player_id = o.player_id
-LEFT JOIN gold_player_value v ON v.player_id = o.player_id AND v.season = o.season
-GROUP BY o.season, o.team;
+SELECT w.season, w.team,
+  SUM(IF(w.missed_injured, 1, 0)) AS player_games_out,
+  SUM(IF(w.missed_injured AND w.role = 'starter', 1, 0)) AS starter_games_out,
+  COUNT(DISTINCT IF(w.missed_injured AND w.role = 'starter', w.player_id, NULL)) AS starters_missing_time,
+  RANK() OVER (PARTITION BY w.season ORDER BY SUM(IF(w.missed_injured AND w.role = 'starter', 1, 0))) AS rank_fewest_starter_games_lost
+FROM w
+GROUP BY w.season, w.team;
 
 -- ---------------------------------------------------------------- data freshness
 CREATE OR REFRESH MATERIALIZED VIEW gold_data_freshness

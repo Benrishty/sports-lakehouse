@@ -107,7 +107,9 @@ AGENTS = {
             table("gold_data_freshness", "How current each source is."),
         ],
         "rules": [
-            "Overpaid / bargain questions: use value_score in gold_player_value and show the production metric it is based on (production_metric_name). Say OL is not scored.",
+            "Keep two judgments separate: performance_tier = how good the player is (elite / very good / average / below average), contract_verdict = value for money (bargain / fair / overpaid). A 'fair' contract on an elite player means he is great AND paid like it, say both.",
+            "Always mention production_basis (this season vs. last season when he has barely played) and availability (games_played, games_missed_injured, current_roster_status). Never call an injured player overpaid because he is not playing.",
+            "Overpaid / bargain questions: use value_score / contract_verdict and show the rate it is based on (production_metric_name). OL and specialists are not scored.",
             "Trade or free-agent targets: players on OTHER teams with high value_score, ideally with final_season soon (cheaper to acquire) and age under 30.",
             "Spending questions: compare share_of_team_apy with league_avg_share and top8_avg_share.",
         ],
@@ -130,7 +132,7 @@ AGENTS = {
             table("silver_player_week", "Weekly box scores: who played which week and how.", SEASON, PLAYER, ("team", "Team that week.", None, True)),
             table("gold_player_snaps_season", "Snap counts and role per player, season and team (2013+).", SEASON, TEAM, PLAYER),
             table("gold_injury_report", "Latest official injury report with each player's role and snap share.", TEAM, PLAYER,
-                  ("report_status", "Out, Doubtful, Questionable, or NULL (practice listing only).", ["status"], True)),
+                  ("status", "injured reserve, PUP, NFI (from roster status) or Out / Doubtful / Questionable / practice report only.", ["injury status"], True)),
             table("gold_data_freshness", "How current each source is."),
         ],
         "rules": [

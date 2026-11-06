@@ -18,7 +18,7 @@ from pyspark.sql import SparkSession, DataFrame, Window, functions as F, types a
 PROJ = Path(sys.argv[1])
 DATA = Path(sys.argv[2])
 spark = SparkSession.builder.master("local[4]").config("spark.sql.shuffle.partitions", "8") \
-    .config("spark.driver.memory", "4g").getOrCreate()
+    .config("spark.driver.memory", "8g").getOrCreate()
 spark.sparkContext.setLogLevel("ERROR")
 
 # ---- bronze: pull real functions out of the notebook source
@@ -63,9 +63,10 @@ def bronze_file(name: str, ds: str):
 # every other bronze table: sample files per dataset (seasonal datasets get an old and a current season)
 BRONZE_FILES = {
     "teams": ["teams_colors_logos.parquet"], "players": ["players.parquet"],
-    "player_week": ["stats_player_week_1999.parquet", "stats_player_week_2026.parquet"],
-    "snap_counts": ["snap_counts_2015.parquet", "snap_counts_2026.parquet"],
-    "injuries": ["injuries_2012.parquet", "injuries_2026.parquet"],
+    "player_week": ["stats_player_week_1999.parquet", "stats_player_week_2025.parquet", "stats_player_week_2026.parquet"],
+    "snap_counts": ["snap_counts_2015.parquet", "snap_counts_2025.parquet", "snap_counts_2026.parquet"],
+    "injuries": ["injuries_2012.parquet", "injuries_2025.parquet", "injuries_2026.parquet"],
+    "roster_week": ["roster_weekly_2015.parquet", "roster_weekly_2026.parquet"],
     "ftn_charting": ["ftn_charting_2022.parquet", "ftn_charting_2026.parquet"],
     "contracts": ["historical_contracts.parquet"], "draft_picks": ["draft_picks.parquet"], "combine": ["combine.parquet"],
     "ngs_passing": ["ngs_passing.parquet"], "ngs_rushing": ["ngs_rushing.parquet"], "ngs_receiving": ["ngs_receiving.parquet"],
@@ -124,6 +125,7 @@ for flow in cdc:
         if kind == "drop": df = df.where(cond)
     w = Window.partitionBy(*flow["keys"]).orderBy(F.col("_snapshot_ts").desc())
     out = df.withColumn("_rn", F.row_number().over(w)).where("_rn = 1").drop("_rn")
+    out = out.localCheckpoint()  # materialize like the pipeline does, so query plans stay small
     out.createOrReplaceTempView(flow["target"])
     print(flow["target"], out.count())
 
@@ -133,6 +135,7 @@ for f in mvs:  # silver materialized views (latest-snapshot feeds); expectations
         bad = df.where(f"NOT ({cond})").count()
         print(f"  expectation {f.__name__}.{name} [{kind}] violations={bad}")
         if kind == "drop": df = df.where(cond)
+    df = df.localCheckpoint()
     df.createOrReplaceTempView(f.__name__)
     print(f.__name__, df.count())
 
@@ -148,7 +151,7 @@ gold = "\n".join(l for l in gold.splitlines() if not l.strip().startswith("--"))
 for stmt in [s.strip() for s in gold.split(";") if s.strip()]:
     m = re.match(r'CREATE OR REFRESH MATERIALIZED VIEW (\w+)\s+COMMENT "[^"]*"\s+AS\s+(.*)', stmt, re.S)
     assert m, stmt[:80]
-    spark.sql(f"CREATE OR REPLACE TEMP VIEW {m.group(1)} AS {m.group(2)}")
+    spark.sql(m.group(2)).localCheckpoint().createOrReplaceTempView(m.group(1))
     print(m.group(1), spark.table(m.group(1)).count())
 
 spark.sql("""select season, team, wins, losses, ats_covers, round(off_epa_per_play,3) off, round(def_epa_per_play,3) def,
@@ -194,4 +197,15 @@ assert dart and dart[0].position == "QB" and dart[0].headshot_url.startswith("ht
 winston = spark.sql("select player_name, headshot_url from gold_qb_season where season = 2026 and player_short_name = 'J.Winston'").first()
 assert winston.player_name == "Jameis Winston" and winston.headshot_url, winston
 assert spark.sql("select count(*) c from gold_player_season where season = 1999").first().c > 1000
+# ---- value model v2 + availability: the two cases Ben flagged
+burns = spark.sql("select * from gold_player_value where player_name = 'Brian Burns'").first()
+assert burns.games_played == 3 and burns.games_missed_injured >= 4, (burns.games_played, burns.games_missed_injured)
+assert burns.current_roster_status == "injured reserve", burns.current_roster_status
+assert burns.production_basis.startswith("last season (2025)"), burns.production_basis   # not judged on 3 games
+likely = spark.sql("select * from gold_player_value where player_name = 'Isaiah Likely'").first()
+assert likely.performance_tier in ("elite", "very good"), (likely.performance_tier, likely.production_pct)
+assert likely.production_metric_name == "Receiving EPA per game", likely.production_metric_name
+assert spark.sql("select count(*) c from gold_player_value where position_group = 'OL' and value_score is not null").first().c == 0
+ir = spark.sql("select status from gold_injury_report where player_name = 'Brian Burns'").first()
+assert ir is not None and ir.status == "injured reserve", ir                                   # IR players are listed
 print("ALL CHECKS PASSED")

@@ -73,10 +73,17 @@
       "queryLines": [
         "SELECT v.team, v.headshot_url, v.player_name, v.position_group, v.age,\n",
         "       ROUND(v.apy_m, 1) AS apy_m, ROUND(v.guaranteed_m, 1) AS guaranteed_m, v.final_season,\n",
-        "       v.role, ROUND(100 * v.snap_share) AS snap_pct, v.production_metric_name,\n",
-        "       ROUND(v.production_metric, 2) AS production, ROUND(100 * v.value_score) AS value_score,\n",
-        "       CASE WHEN v.value_score >= 0.25 THEN '\ud83d\udcb0 bargain' WHEN v.value_score <= -0.25 THEN '\u26a0\ufe0f overpaid'\n",
-        "            WHEN v.value_score IS NULL THEN '' ELSE 'fair' END AS verdict\n",
+        "       CONCAT(COALESCE(v.games_played, 0), ' of ', COALESCE(v.team_games_on_roster, 0)) AS games,\n",
+        "       CASE WHEN v.current_roster_status IN ('injured reserve', 'PUP', 'NFI') THEN CONCAT('\ud83e\ude79 ', v.current_roster_status)\n",
+        "            WHEN v.games_missed_injured > 0 THEN CONCAT('missed ', v.games_missed_injured, ' (injury)') ELSE '' END AS availability,\n",
+        "       v.production_metric_name, ROUND(v.production_metric, 2) AS production,\n",
+        "       CASE v.performance_tier WHEN 'elite' THEN '\u2b50 elite' WHEN 'very good' THEN '\ud83d\udfe2 very good'\n",
+        "            WHEN 'average' THEN '\ud83d\udfe1 average' WHEN 'below average' THEN '\ud83d\udd34 below average' ELSE '' END AS performance,\n",
+        "       CASE v.contract_verdict WHEN 'bargain' THEN '\ud83d\udcb0 bargain' WHEN 'overpaid' THEN '\u26a0\ufe0f overpaid'\n",
+        "            WHEN 'fair' THEN 'paid fairly' ELSE '' END AS contract,\n",
+        "       ROUND(100 * v.value_score) AS value_score,\n",
+        "       CASE WHEN v.production_basis LIKE 'last season%' THEN 'last season' WHEN v.production_basis = 'this season' THEN 'this season'\n",
+        "            ELSE 'not scored' END AS judged_on\n",
         "FROM workspace.nfl.gold_player_value v\n",
         "WHERE v.team IS NOT NULL\n",
         "ORDER BY v.apy_m DESC\n"
@@ -167,11 +174,12 @@
       "name": "gm_injuries",
       "displayName": "gm_injuries",
       "queryLines": [
-        "SELECT i.team, i.headshot_url, i.player_name, i.position, COALESCE(i.report_status, 'Limited/none') AS status, i.injury,\n",
-        "       i.practice_status, i.role, ROUND(100 * i.snap_share) AS snap_pct, ROUND(i.apy_m, 1) AS apy_m, i.week\n",
+        "SELECT i.team, i.headshot_url, i.player_name, i.position, i.status, i.injury, i.role,\n",
+        "       ROUND(100 * i.snap_share) AS snap_pct, i.games_played, i.games_missed_injured, i.last_week_played,\n",
+        "       ROUND(i.apy_m, 1) AS apy_m, i.week\n",
         "FROM workspace.nfl.gold_injury_report i\n",
-        "ORDER BY CASE i.report_status WHEN 'Out' THEN 1 WHEN 'Doubtful' THEN 2 WHEN 'Questionable' THEN 3 ELSE 4 END,\n",
-        "         i.snap_share DESC NULLS LAST\n"
+        "ORDER BY CASE WHEN i.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN i.status = 'Out' THEN 2 WHEN i.status = 'Doubtful' THEN 3\n",
+        "              WHEN i.status = 'Questionable' THEN 4 ELSE 5 END, i.snap_share DESC NULLS LAST\n"
       ]
     },
     {
@@ -179,7 +187,7 @@
       "displayName": "gm_injury_league",
       "queryLines": [
         "SELECT x.team AS club, x.starter_games_out, x.starters_missing_time, x.player_games_out,\n",
-        "       ROUND(x.starter_apy_affected_m, 1) AS starter_apy_affected_m, x.rank_fewest_starter_games_lost\n",
+        "       x.rank_fewest_starter_games_lost\n",
         "FROM workspace.nfl.gold_team_injury_impact x\n",
         "WHERE x.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_injury_impact)\n",
         "ORDER BY x.starter_games_out DESC\n"
@@ -1016,7 +1024,7 @@
             "multilineTextboxSpec": {
               "lines": [
                 "## Roster & Cap\n",
-                "Contract value is APY (average annual value, $M) from OverTheCap, not the exact current-year cap hit. **Value score** = production percentile minus cost percentile within the position group (-100..+100), current season, players with 25%+ snap share. OL and specialists are not scored (no individual blocking data).\n"
+                "Two separate questions per player: **how good is he** (production rate vs. his position group) and **is the contract good value** (production percentile minus pay percentile). Rates, not totals, so missed games do not count against anyone. Pay is APY ($M) from OverTheCap, not the exact cap hit. OL and specialists are not scored (no individual blocking data).\n"
               ]
             }
           },
@@ -1378,20 +1386,28 @@
                       "expression": "`apy_m`"
                     },
                     {
-                      "name": "guaranteed_m",
-                      "expression": "`guaranteed_m`"
-                    },
-                    {
                       "name": "final_season",
                       "expression": "`final_season`"
                     },
                     {
-                      "name": "role",
-                      "expression": "`role`"
+                      "name": "games",
+                      "expression": "`games`"
                     },
                     {
-                      "name": "snap_pct",
-                      "expression": "`snap_pct`"
+                      "name": "availability",
+                      "expression": "`availability`"
+                    },
+                    {
+                      "name": "performance",
+                      "expression": "`performance`"
+                    },
+                    {
+                      "name": "contract",
+                      "expression": "`contract`"
+                    },
+                    {
+                      "name": "value_score",
+                      "expression": "`value_score`"
                     },
                     {
                       "name": "production_metric_name",
@@ -1402,12 +1418,8 @@
                       "expression": "`production`"
                     },
                     {
-                      "name": "value_score",
-                      "expression": "`value_score`"
-                    },
-                    {
-                      "name": "verdict",
-                      "expression": "`verdict`"
+                      "name": "judged_on",
+                      "expression": "`judged_on`"
                     }
                   ]
                 }
@@ -1556,33 +1568,6 @@
                     "order": 100004
                   },
                   {
-                    "fieldName": "guaranteed_m",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "imageUrlTemplate": "{{ @ }}",
-                    "imageTitleTemplate": "{{ @ }}",
-                    "imageWidth": "",
-                    "imageHeight": "",
-                    "linkUrlTemplate": "{{ @ }}",
-                    "linkTextTemplate": "{{ @ }}",
-                    "linkTitleTemplate": "{{ @ }}",
-                    "linkOpenInNewTab": true,
-                    "type": "float",
-                    "displayAs": "number",
-                    "visible": true,
-                    "title": "Gtd $M",
-                    "allowSearch": false,
-                    "alignContent": "right",
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "numberFormat": "0.0",
-                    "order": 100005
-                  },
-                  {
                     "fieldName": "final_season",
                     "booleanValues": [
                       "false",
@@ -1607,10 +1592,10 @@
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
                     "numberFormat": "0",
-                    "order": 100006
+                    "order": 100005
                   },
                   {
-                    "fieldName": "role",
+                    "fieldName": "games",
                     "booleanValues": [
                       "false",
                       "true"
@@ -1626,7 +1611,33 @@
                     "type": "string",
                     "displayAs": "string",
                     "visible": true,
-                    "title": "Role",
+                    "title": "Games",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "availability",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Availability",
                     "allowSearch": false,
                     "alignContent": "left",
                     "allowHTML": false,
@@ -1636,34 +1647,7 @@
                     "order": 100007
                   },
                   {
-                    "fieldName": "snap_pct",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "imageUrlTemplate": "{{ @ }}",
-                    "imageTitleTemplate": "{{ @ }}",
-                    "imageWidth": "",
-                    "imageHeight": "",
-                    "linkUrlTemplate": "{{ @ }}",
-                    "linkTextTemplate": "{{ @ }}",
-                    "linkTitleTemplate": "{{ @ }}",
-                    "linkOpenInNewTab": true,
-                    "type": "integer",
-                    "displayAs": "number",
-                    "visible": true,
-                    "title": "Snap %",
-                    "allowSearch": false,
-                    "alignContent": "right",
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "numberFormat": "0",
-                    "order": 100008
-                  },
-                  {
-                    "fieldName": "production_metric_name",
+                    "fieldName": "performance",
                     "booleanValues": [
                       "false",
                       "true"
@@ -1679,17 +1663,17 @@
                     "type": "string",
                     "displayAs": "string",
                     "visible": true,
-                    "title": "Measured by",
+                    "title": "How good",
                     "allowSearch": false,
                     "alignContent": "left",
                     "allowHTML": false,
                     "highlightLinks": false,
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
-                    "order": 100009
+                    "order": 100008
                   },
                   {
-                    "fieldName": "production",
+                    "fieldName": "contract",
                     "booleanValues": [
                       "false",
                       "true"
@@ -1702,18 +1686,17 @@
                     "linkTextTemplate": "{{ @ }}",
                     "linkTitleTemplate": "{{ @ }}",
                     "linkOpenInNewTab": true,
-                    "type": "float",
-                    "displayAs": "number",
+                    "type": "string",
+                    "displayAs": "string",
                     "visible": true,
-                    "title": "Production",
+                    "title": "Contract",
                     "allowSearch": false,
-                    "alignContent": "right",
+                    "alignContent": "left",
                     "allowHTML": false,
                     "highlightLinks": false,
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
-                    "numberFormat": "0.00",
-                    "order": 100010
+                    "order": 100009
                   },
                   {
                     "fieldName": "value_score",
@@ -1740,10 +1723,10 @@
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
                     "numberFormat": "0",
-                    "order": 100011
+                    "order": 100010
                   },
                   {
-                    "fieldName": "verdict",
+                    "fieldName": "production_metric_name",
                     "booleanValues": [
                       "false",
                       "true"
@@ -1759,14 +1742,67 @@
                     "type": "string",
                     "displayAs": "string",
                     "visible": true,
-                    "title": "",
+                    "title": "Measured by",
                     "allowSearch": false,
                     "alignContent": "left",
                     "allowHTML": false,
                     "highlightLinks": false,
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
+                    "order": 100011
+                  },
+                  {
+                    "fieldName": "production",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "float",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Rate",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0.00",
                     "order": 100012
+                  },
+                  {
+                    "fieldName": "judged_on",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "title": "Judged on",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "order": 100013
                   }
                 ]
               },
@@ -1774,7 +1810,7 @@
                 "showTitle": true,
                 "title": "Contracts vs. production",
                 "showDescription": true,
-                "description": "Sorted by APY. Bargain = value score >= 25, overpaid <= -25."
+                "description": "How good = production percentile in the position group (elite 90+, very good 70-90, average 40-70). Contract = production percentile minus pay percentile (bargain >= +25, overpaid <= -25). Players with under 4 games this season are judged on last season."
               }
             }
           },
@@ -3526,16 +3562,24 @@
                       "expression": "`injury`"
                     },
                     {
-                      "name": "practice_status",
-                      "expression": "`practice_status`"
-                    },
-                    {
                       "name": "role",
                       "expression": "`role`"
                     },
                     {
                       "name": "snap_pct",
                       "expression": "`snap_pct`"
+                    },
+                    {
+                      "name": "games_played",
+                      "expression": "`games_played`"
+                    },
+                    {
+                      "name": "games_missed_injured",
+                      "expression": "`games_missed_injured`"
+                    },
+                    {
+                      "name": "last_week_played",
+                      "expression": "`last_week_played`"
                     },
                     {
                       "name": "apy_m",
@@ -3654,7 +3698,7 @@
                     "type": "string",
                     "displayAs": "string",
                     "visible": true,
-                    "title": "Game status",
+                    "title": "Status",
                     "allowSearch": false,
                     "alignContent": "left",
                     "allowHTML": false,
@@ -3690,32 +3734,6 @@
                     "order": 100004
                   },
                   {
-                    "fieldName": "practice_status",
-                    "booleanValues": [
-                      "false",
-                      "true"
-                    ],
-                    "imageUrlTemplate": "{{ @ }}",
-                    "imageTitleTemplate": "{{ @ }}",
-                    "imageWidth": "",
-                    "imageHeight": "",
-                    "linkUrlTemplate": "{{ @ }}",
-                    "linkTextTemplate": "{{ @ }}",
-                    "linkTitleTemplate": "{{ @ }}",
-                    "linkOpenInNewTab": true,
-                    "type": "string",
-                    "displayAs": "string",
-                    "visible": true,
-                    "title": "Practice",
-                    "allowSearch": false,
-                    "alignContent": "left",
-                    "allowHTML": false,
-                    "highlightLinks": false,
-                    "useMonospaceFont": false,
-                    "preserveWhitespace": false,
-                    "order": 100005
-                  },
-                  {
                     "fieldName": "role",
                     "booleanValues": [
                       "false",
@@ -3739,7 +3757,7 @@
                     "highlightLinks": false,
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
-                    "order": 100006
+                    "order": 100005
                   },
                   {
                     "fieldName": "snap_pct",
@@ -3766,7 +3784,88 @@
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
                     "numberFormat": "0",
+                    "order": 100006
+                  },
+                  {
+                    "fieldName": "games_played",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "GP",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
                     "order": 100007
+                  },
+                  {
+                    "fieldName": "games_missed_injured",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Missed (inj.)",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100008
+                  },
+                  {
+                    "fieldName": "last_week_played",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "title": "Last played",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "numberFormat": "0",
+                    "order": 100009
                   },
                   {
                     "fieldName": "apy_m",
@@ -3793,7 +3892,7 @@
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
                     "numberFormat": "0.0",
-                    "order": 100008
+                    "order": 100010
                   },
                   {
                     "fieldName": "week",
@@ -3820,13 +3919,15 @@
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
                     "numberFormat": "0",
-                    "order": 100009
+                    "order": 100011
                   }
                 ]
               },
               "frame": {
                 "showTitle": true,
-                "title": "Injury report"
+                "title": "Injury report",
+                "showDescription": true,
+                "description": "Includes players on injured reserve / PUP / NFI, which the official weekly report omits."
               }
             }
           },

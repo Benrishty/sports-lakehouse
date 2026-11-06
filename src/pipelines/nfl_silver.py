@@ -356,6 +356,37 @@ dp.create_auto_cdc_flow(target="silver_injuries", source="injuries_typed",
                         sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
 
 
+# ---------------------------------------------------------------- weekly roster status (2002+)
+
+@dp.temporary_view()
+@dp.expect_or_drop("has_key", "player_id IS NOT NULL AND season IS NOT NULL AND week IS NOT NULL AND team IS NOT NULL")
+def roster_week_typed():
+    return (spark.readStream.table(bronze("roster_week")).select(
+        i("season"), i("week"), "game_type", franchise("team"), F.col("gsis_id").alias("player_id"),
+        F.col("full_name").alias("player_name"), "position", "depth_chart_position",
+        F.col("status").alias("roster_status"), F.col("status_description_abbr").alias("status_code"),
+        # readable availability: R01 / R48 = injured reserve (R48 = designated to return), R04 = PUP, R05 = NFI
+        F.when(F.col("status_description_abbr").isin("R01", "R48"), "injured reserve")
+         .when(F.col("status_description_abbr") == "R04", "PUP")
+         .when(F.col("status_description_abbr") == "R05", "NFI")
+         .when(F.col("status") == "RES", "reserve (other)")
+         .when(F.col("status") == "ACT", "active")
+         .when(F.col("status") == "INA", "inactive")
+         .when(F.col("status") == "DEV", "practice squad")
+         .otherwise(F.lower(F.col("status"))).alias("availability"),
+        "_snapshot_ts",
+    ).dropDuplicates(["season", "week", "game_type", "team", "player_id", "_snapshot_ts"]))
+
+
+dp.create_streaming_table(name="silver_roster_week",
+                          comment="Weekly roster status per player and team, 2002+: active, inactive, injured reserve, PUP, NFI, practice squad. "
+                                  "The official injury report omits players on injured reserve, so use this for availability.",
+                          cluster_by=["season", "week"])
+dp.create_auto_cdc_flow(target="silver_roster_week", source="roster_week_typed",
+                        keys=["season", "week", "game_type", "team", "player_id"],
+                        sequence_by=F.col("_snapshot_ts"), stored_as_scd_type=1)
+
+
 # ---------------------------------------------------------------- FTN charting (2022+)
 
 FTN_FLAGS = ["is_no_huddle", "is_motion", "is_play_action", "is_screen_pass", "is_rpo", "is_trick_play",

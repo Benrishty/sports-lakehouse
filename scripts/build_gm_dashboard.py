@@ -66,10 +66,10 @@ LAYOUT = {
             col("cadence", "Cadence")], "PFR advanced stats are season files that lag during the season."), (0, 20, 12, 5)),
     ]),
     "roster_cap": ("Roster & Cap", [
-        (text("cap_head", "## Roster & Cap\nContract value is APY (average annual value, $M) from OverTheCap, not the exact "
-                          "current-year cap hit. **Value score** = production percentile minus cost percentile within the "
-                          "position group (-100..+100), current season, players with 25%+ snap share. OL and specialists are not "
-                          "scored (no individual blocking data)."), (0, 0, 12, 2)),
+        (text("cap_head", "## Roster & Cap\nTwo separate questions per player: **how good is he** (production rate vs. his position group) and "
+                          "**is the contract good value** (production percentile minus pay percentile). Rates, not totals, so "
+                          "missed games do not count against anyone. Pay is APY ($M) from OverTheCap, not the exact cap hit. "
+                          "OL and specialists are not scored (no individual blocking data)."), (0, 0, 12, 2)),
         (bar("cap_bar", "gm_cap_allocation", "Spend vs. league average by position group (percentage points of team APY)",
              "position_group", "vs_league_pts", "Pts vs. league"), (0, 2, 6, 9)),
         (table("cap_table", "gm_cap_allocation", "Cap allocation", [
@@ -79,11 +79,13 @@ LAYOUT = {
             "Top-8 = the 8 best teams by current net EPA."), (6, 2, 6, 9)),
         (table("value_table", "gm_roster_value", "Contracts vs. production", [
             col("headshot_url", "", **IMG, width=36), col("player_name", "Player"), col("position_group", "Pos"),
-            col("age", "Age", "integer", "0"), col("apy_m", "APY $M", "float", "0.0"), col("guaranteed_m", "Gtd $M", "float", "0.0"),
-            col("final_season", "Thru", "integer", "0"), col("role", "Role"), col("snap_pct", "Snap %", "integer", "0"),
-            col("production_metric_name", "Measured by"), col("production", "Production", "float", "0.00"),
-            col("value_score", "Value", "integer", "0"), col("verdict", "")],
-            "Sorted by APY. Bargain = value score >= 25, overpaid <= -25."), (0, 11, 12, 13)),
+            col("age", "Age", "integer", "0"), col("apy_m", "APY $M", "float", "0.0"), col("final_season", "Thru", "integer", "0"),
+            col("games", "Games"), col("availability", "Availability"),
+            col("performance", "How good"), col("contract", "Contract"), col("value_score", "Value", "integer", "0"),
+            col("production_metric_name", "Measured by"), col("production", "Rate", "float", "0.00"), col("judged_on", "Judged on")],
+            "How good = production percentile in the position group (elite 90+, very good 70-90, average 40-70). Contract = production "
+            "percentile minus pay percentile (bargain >= +25, overpaid <= -25). Players with under 4 games this season are judged on last season."),
+         (0, 11, 12, 13)),
         (table("expiring_table", "gm_expiring", "Contracts ending this season: re-sign, replace or let walk", [
             col("headshot_url", "", **IMG, width=32), col("player_name", "Player"), col("position_group", "Pos"),
             col("age", "Age", "integer", "0"), col("apy_m", "APY $M", "float", "0.0"), col("role", "Role"),
@@ -127,9 +129,11 @@ LAYOUT = {
                              "starter-games each team has lost this season (weeks a starter was listed Out)."), (0, 0, 12, 2)),
         (table("inj_table", "gm_injuries", "Injury report", [
             col("headshot_url", "", **IMG, width=32), col("player_name", "Player"), col("position", "Pos"),
-            col("status", "Game status"), col("injury", "Injury"), col("practice_status", "Practice"),
-            col("role", "Role"), col("snap_pct", "Snap %", "integer", "0"), col("apy_m", "APY $M", "float", "0.0"),
-            col("week", "Week", "integer", "0")]), (0, 2, 12, 11)),
+            col("status", "Status"), col("injury", "Injury"), col("role", "Role"), col("snap_pct", "Snap %", "integer", "0"),
+            col("games_played", "GP", "integer", "0"), col("games_missed_injured", "Missed (inj.)", "integer", "0"),
+            col("last_week_played", "Last played", "integer", "0"), col("apy_m", "APY $M", "float", "0.0"),
+            col("week", "Week", "integer", "0")], "Includes players on injured reserve / PUP / NFI, which the official weekly report omits."),
+         (0, 2, 12, 11)),
         (bar("inj_bar", "gm_injury_league", "League: starter-games lost to injury this season", "club",
              "starter_games_out", "Starter games out"), (0, 13, 12, 8)),
     ]),
