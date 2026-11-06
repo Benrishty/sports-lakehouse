@@ -33,17 +33,12 @@ analogue, since both run Spark notebooks over Delta tables.
 - Non-commercial use only. A portfolio is fine. Don't use it for client or Bentex work.
 - Optional: verifying with LinkedIn raises some limits.
 
-## 1. Put the project in its own public repo (10 min)
+## 1. Clone the repo (2 min)
 
-Recruiters need a public link, and this `career-portfolio` repo holds your résumé, so it should stay
-private. Create an empty **public** repo on GitHub named `sports-lakehouse` (no README), then on your Mac:
+The project lives at https://github.com/BenRishty/sports-lakehouse (public). On your Mac:
 
 ```bash
-cp -R ~/path/to/career-portfolio/Projects/sports-lakehouse ~/code/sports-lakehouse
-cd ~/code/sports-lakehouse
-git init -b main && git add . && git commit -m "NFL lakehouse: ingest, pipeline, gold models"
-git remote add origin https://github.com/BenRishty/sports-lakehouse.git
-git push -u origin main
+git clone https://github.com/BenRishty/sports-lakehouse.git ~/code/sports-lakehouse
 ```
 
 ## 2. First hour in the UI: get oriented, test the network (30–45 min)
