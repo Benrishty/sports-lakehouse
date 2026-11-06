@@ -127,15 +127,23 @@ betting_layout = [
 ]
 
 
-def page(key, layout):
+GRID_SCALE = 2  # layouts above are written on a 6-column grid; AI/BI canvases are 12 columns wide
+
+
+def page(key, layout, existing=None):
+    """Build a page from `layout`, KEEPING any widgets someone added to it in the UI (merge, not replace)."""
+    owned = {w["name"] for w, _ in layout}
+    kept = [e for e in (existing or {}).get("layout", []) if e["widget"]["name"] not in owned]
+    entries = [{"widget": w, "position": {"x": x * GRID_SCALE, "y": y, "width": wd * GRID_SCALE, "height": h}}
+               for w, (x, y, wd, h) in layout] + kept
     cells = set()
-    for w, (x, y, wd, h) in layout:
-        for cx in range(x, x + wd):
-            for cy in range(y, y + h):
-                assert (cx, cy) not in cells, (key, w["name"])
+    for e in entries:
+        pos = e["position"]
+        for cx in range(pos["x"], pos["x"] + pos["width"]):
+            for cy in range(pos["y"], pos["y"] + pos["height"]):
+                assert (cx, cy) not in cells, (key, e["widget"]["name"])
                 cells.add((cx, cy))
-    return {"name": key, "displayName": PAGES[key], "pageType": "PAGE_TYPE_CANVAS",
-            "layout": [{"widget": w, "position": {"x": x, "y": y, "width": wd, "height": h}} for w, (x, y, wd, h) in layout]}
+    return {"name": key, "displayName": PAGES[key], "pageType": "PAGE_TYPE_CANVAS", "layout": entries}
 
 
 def main() -> None:
@@ -143,7 +151,10 @@ def main() -> None:
     new_ds = datasets()
     names = {d["name"] for d in new_ds}
     dash["datasets"] = [d for d in dash["datasets"] if d["name"] not in names] + new_ds
-    dash["pages"] = [p for p in dash["pages"] if p["name"] not in PAGES] + [page("players", players_layout), page("betting", betting_layout)]
+    existing = {p["name"]: p for p in dash["pages"]}
+    dash["pages"] = [p for p in dash["pages"] if p["name"] not in PAGES] + [
+        page("players", players_layout, existing.get("players")),
+        page("betting", betting_layout, existing.get("betting"))]
     # every widget field must exist in its dataset's SELECT list
     cols = {d["name"]: set(re.findall(r"\bAS\s+(\w+)|\b[a-z]\.(\w+)", "".join(d["queryLines"]))) for d in dash["datasets"]}
     flat = {k: {x for tup in v for x in tup if x} for k, v in cols.items()}
