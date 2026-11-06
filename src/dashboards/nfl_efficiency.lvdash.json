@@ -12,8 +12,8 @@
         "  ROUND(-def_epa_per_play, 3) AS defense_epa,   -- sign flipped: higher = better defense\n",
         "  ROUND(net_epa_per_play, 3)  AS net_epa,\n",
         "  net_epa_rank,\n",
-        "  RANK() OVER (PARTITION BY season ORDER BY (wins + 0.5 * ties) / games DESC) AS record_rank,\n",
-        "  net_epa_rank - RANK() OVER (PARTITION BY season ORDER BY (wins + 0.5 * ties) / games DESC) AS luck_gap\n",
+        "  record_rank,\n",
+        "  luck_gap\n",
         "FROM workspace.nfl.gold_team_season\n",
         "ORDER BY season DESC, luck_gap\n"
       ]

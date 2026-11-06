@@ -1,0 +1,517 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "035bb8f5c503565fa239b28268fa8ea9",
+        "question": [
+          "Which teams have a .500 or worse record but a top-10 net EPA this season?"
+        ]
+      },
+      {
+        "id": "3c0a139f9c86501f8e56eecdc81bb9fc",
+        "question": [
+          "Who are the top 10 quarterbacks by EPA per dropback this season?"
+        ]
+      },
+      {
+        "id": "c94b295da77e58379a93571cce586607",
+        "question": [
+          "Which teams have the best record against the spread this season?"
+        ]
+      },
+      {
+        "id": "cba7d38bd52d509d94ee84c33ba2ea6b",
+        "question": [
+          "Which team had the best offense each season since 1999?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "workspace.nfl.gold_qb_season",
+        "description": [
+          "One row per quarterback per regular season, minimum 100 dropbacks."
+        ],
+        "column_configs": [
+          {
+            "column_name": "cpoe",
+            "description": [
+              "Completion percentage over expected, in percentage points."
+            ],
+            "synonyms": [
+              "completion percentage over expected"
+            ]
+          },
+          {
+            "column_name": "epa_per_dropback",
+            "description": [
+              "Average EPA per dropback. Higher is better; the main QB efficiency metric."
+            ],
+            "synonyms": [
+              "QB efficiency",
+              "EPA/play"
+            ]
+          },
+          {
+            "column_name": "epa_rank",
+            "description": [
+              "Rank by epa_per_dropback within the season (1 = best)."
+            ]
+          },
+          {
+            "column_name": "latest_team",
+            "description": [
+              "Team the QB played for most recently that season."
+            ],
+            "synonyms": [
+              "team"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "player_name",
+            "description": [
+              "Quarterback name as abbreviated by nflverse, e.g. 'J.Allen', 'L.Jackson'."
+            ],
+            "synonyms": [
+              "quarterback",
+              "QB",
+              "passer"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_team_games",
+        "description": [
+          "One row per team per completed game (two rows per game): score, margin vs. the closing spread, and EPA efficiency."
+        ],
+        "column_configs": [
+          {
+            "column_name": "ats_outcome",
+            "description": [
+              "Result against the spread: cover, no cover or push."
+            ],
+            "synonyms": [
+              "against the spread",
+              "ATS"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "cover_margin",
+            "description": [
+              "margin - expected_margin. Positive = beat the spread."
+            ]
+          },
+          {
+            "column_name": "expected_margin",
+            "description": [
+              "Closing spread from this team's point of view: positive = favoured by that many points."
+            ],
+            "synonyms": [
+              "spread",
+              "line"
+            ]
+          },
+          {
+            "column_name": "game_type",
+            "description": [
+              "REG = regular season; WC, DIV, CON, SB = playoff rounds."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "margin",
+            "description": [
+              "Points for minus points against."
+            ],
+            "synonyms": [
+              "point differential"
+            ]
+          },
+          {
+            "column_name": "net_epa_per_play",
+            "description": [
+              "Offensive EPA/play minus defensive EPA/play allowed in this game. Higher is better."
+            ],
+            "synonyms": [
+              "net EPA"
+            ]
+          },
+          {
+            "column_name": "opponent",
+            "description": [
+              "Opponent franchise code."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "outcome",
+            "description": [
+              "W, L or T for this team."
+            ],
+            "synonyms": [
+              "result"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis; LAC = Chargers incl. San Diego; LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.gold_team_season",
+        "description": [
+          "One row per team per regular season: record, record against the spread, play-weighted EPA efficiency and league ranks."
+        ],
+        "column_configs": [
+          {
+            "column_name": "ats_covers",
+            "description": [
+              "Regular-season games where the team beat the closing spread."
+            ],
+            "synonyms": [
+              "covers"
+            ]
+          },
+          {
+            "column_name": "def_epa_per_play",
+            "description": [
+              "EPA per play allowed on defense. LOWER is better."
+            ],
+            "synonyms": [
+              "defense",
+              "defensive efficiency"
+            ]
+          },
+          {
+            "column_name": "luck_gap",
+            "description": [
+              "net_epa_rank - record_rank. NEGATIVE = unlucky (plays better than its record). POSITIVE = lucky (record flatters it)."
+            ],
+            "synonyms": [
+              "luck",
+              "lucky",
+              "unlucky",
+              "overperforming",
+              "underperforming"
+            ]
+          },
+          {
+            "column_name": "net_epa_per_play",
+            "description": [
+              "off_epa_per_play - def_epa_per_play. Higher is better; the best single measure of team quality."
+            ],
+            "synonyms": [
+              "net EPA",
+              "team efficiency"
+            ]
+          },
+          {
+            "column_name": "net_epa_rank",
+            "description": [
+              "Rank by net_epa_per_play within the season (1 = best)."
+            ],
+            "synonyms": [
+              "power ranking"
+            ]
+          },
+          {
+            "column_name": "off_epa_per_play",
+            "description": [
+              "Offensive EPA per scrimmage play. Higher is better."
+            ],
+            "synonyms": [
+              "offense",
+              "offensive efficiency"
+            ]
+          },
+          {
+            "column_name": "pass_rate",
+            "description": [
+              "Share of scrimmage plays that were passes."
+            ]
+          },
+          {
+            "column_name": "record_rank",
+            "description": [
+              "Rank by win percentage within the season (1 = best record; ties count half)."
+            ]
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis; LAC = Chargers incl. San Diego; LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.silver_plays",
+        "description": [
+          "One row per play since 1999 (latest nflverse version). Use only for play-level questions; prefer the gold tables for team and QB aggregates."
+        ],
+        "column_configs": [
+          {
+            "column_name": "_snapshot_ts",
+            "exclude": true
+          },
+          {
+            "column_name": "defteam",
+            "description": [
+              "Team on defense (franchise code)."
+            ],
+            "synonyms": [
+              "defense team"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "epa",
+            "description": [
+              "Expected points added on the play."
+            ]
+          },
+          {
+            "column_name": "is_pass",
+            "description": [
+              "1 if a pass play (including sacks and scrambles)."
+            ]
+          },
+          {
+            "column_name": "is_rush",
+            "description": [
+              "1 if a designed run."
+            ]
+          },
+          {
+            "column_name": "passer_player_name",
+            "description": [
+              "Passer, abbreviated name (e.g. 'B.Purdy')."
+            ],
+            "synonyms": [
+              "quarterback"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "posteam",
+            "description": [
+              "Team with the ball (franchise code)."
+            ],
+            "synonyms": [
+              "offense team"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "receiver_player_name",
+            "description": [
+              "Targeted receiver, abbreviated name."
+            ],
+            "synonyms": [
+              "receiver",
+              "target"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "rusher_player_name",
+            "description": [
+              "Ball carrier on runs, abbreviated name."
+            ],
+            "synonyms": [
+              "running back",
+              "rusher"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts (the 2025 season includes Jan/Feb 2026 playoffs)."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "season_type",
+            "description": [
+              "REG or POST."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "3551b8b60dfa5cda8c5420ff994d9070",
+        "content": [
+          "Data: NFL play-by-play and results from nflverse, 1999 to the current week, refreshed every Tuesday. 'This season' means the latest season in the data (MAX(season)).",
+          "Default to the regular season (season_type = 'REG' / game_type = 'REG') unless the user asks about playoffs.",
+          "Teams are stored as franchise codes, using the CURRENT code for all seasons: LA = Los Angeles Rams (also the St. Louis Rams), LAC = Chargers (also San Diego), LV = Raiders (also Oakland), WAS = Washington. Map team names, cities and nicknames to these codes.",
+          "EPA = expected points added per play (nflverse model). Offense: higher is better. Defense (def_epa_per_play): LOWER is better. Net EPA = offense minus defense; higher is better. Success rate = share of plays with EPA > 0.",
+          "Against the spread: cover_margin = margin - expected_margin; a positive cover_margin means the team beat the closing line.",
+          "Luck: use the luck_gap column in gold_team_season, never recompute it. luck_gap = net_epa_rank - record_rank. UNLUCKY = most NEGATIVE luck_gap (plays better than its record): ORDER BY luck_gap ASC. LUCKY = most POSITIVE luck_gap (record better than its play): ORDER BY luck_gap DESC.",
+          "Passing touchdowns: is_pass = 1 AND touchdown = 1 AND interception = 0 AND fumble_lost = 0. The touchdown flag alone also counts pick-sixes and fumble returns scored by the defense.",
+          "Round EPA values to 3 decimals and percentages to 1 decimal. Player names are abbreviated nflverse-style (first initial + last name)."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "3393dd88629f5c598c69ffc18613d6aa",
+        "question": [
+          "Who are the top 10 quarterbacks by EPA per dropback this season?"
+        ],
+        "sql": [
+          "SELECT gold_qb_season.player_name, gold_qb_season.latest_team, gold_qb_season.dropbacks, ROUND(gold_qb_season.epa_per_dropback, 3) AS epa_per_dropback, ROUND(gold_qb_season.cpoe, 1) AS cpoe\nFROM workspace.nfl.gold_qb_season\nWHERE gold_qb_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_qb_season)\nORDER BY gold_qb_season.epa_per_dropback DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "5e4bf9d98e8c5122a51d1498e76c13e5",
+        "question": [
+          "Which teams have been the luckiest this season?"
+        ],
+        "sql": [
+          "SELECT gold_team_season.team, gold_team_season.wins, gold_team_season.losses, gold_team_season.ties, gold_team_season.net_epa_rank, gold_team_season.record_rank, gold_team_season.luck_gap\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nORDER BY gold_team_season.luck_gap DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "64a964ba11595883aef3dfb66d38f3b0",
+        "question": [
+          "What were the longest touchdown passes this season?"
+        ],
+        "sql": [
+          "SELECT silver_plays.week, silver_plays.posteam AS team, silver_plays.defteam AS opponent, silver_plays.passer_player_name, silver_plays.receiver_player_name, silver_plays.yards_gained\nFROM workspace.nfl.silver_plays\nWHERE silver_plays.season = (SELECT MAX(season) FROM workspace.nfl.silver_plays)\n  AND silver_plays.season_type = 'REG'\n  AND silver_plays.is_pass = 1 AND silver_plays.touchdown = 1\n  AND silver_plays.interception = 0 AND silver_plays.fumble_lost = 0\nORDER BY silver_plays.yards_gained DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "bee1f26db06e56a1813967e257674f98",
+        "question": [
+          "Which team had the best offense each season since 1999?"
+        ],
+        "sql": [
+          "SELECT gold_team_season.season, gold_team_season.team, ROUND(gold_team_season.off_epa_per_play, 3) AS off_epa_per_play, gold_team_season.wins, gold_team_season.losses\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.off_epa_rank = 1\nORDER BY gold_team_season.season"
+        ]
+      },
+      {
+        "id": "cbcbb05866f850d5817d1da7dedfa5c9",
+        "question": [
+          "Which teams have a .500 or worse record but a top-10 net EPA this season?"
+        ],
+        "sql": [
+          "SELECT gold_team_season.team, gold_team_season.wins, gold_team_season.losses, gold_team_season.ties, gold_team_season.net_epa_rank, ROUND(gold_team_season.net_epa_per_play, 3) AS net_epa_per_play\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\n  AND gold_team_season.wins <= gold_team_season.losses\n  AND gold_team_season.net_epa_rank <= 10\nORDER BY gold_team_season.net_epa_rank"
+        ]
+      },
+      {
+        "id": "cde866ded3ed57beb5ff6e4b9415ce91",
+        "question": [
+          "Which teams have the best record against the spread this season?"
+        ],
+        "sql": [
+          "SELECT gold_team_season.team, gold_team_season.ats_covers, gold_team_season.ats_losses, ROUND(gold_team_season.avg_cover_margin, 1) AS avg_cover_margin, gold_team_season.wins, gold_team_season.losses\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nORDER BY gold_team_season.ats_covers DESC, gold_team_season.avg_cover_margin DESC\nLIMIT 10"
+        ]
+      },
+      {
+        "id": "dcac833d306e50ac99e54317ec90703a",
+        "question": [
+          "How has the Rams' net EPA trended game by game this season?"
+        ],
+        "sql": [
+          "SELECT gold_team_games.week, gold_team_games.opponent, gold_team_games.outcome, gold_team_games.points_for, gold_team_games.points_against, ROUND(gold_team_games.net_epa_per_play, 3) AS net_epa_per_play\nFROM workspace.nfl.gold_team_games\nWHERE gold_team_games.team = 'LA' AND gold_team_games.game_type = 'REG'\n  AND gold_team_games.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_games)\nORDER BY gold_team_games.week"
+        ]
+      },
+      {
+        "id": "fc0877995e6555e48cfe70e6f723afb4",
+        "question": [
+          "Which teams are the unluckiest this season?"
+        ],
+        "sql": [
+          "SELECT gold_team_season.team, gold_team_season.wins, gold_team_season.losses, gold_team_season.ties, gold_team_season.net_epa_rank, gold_team_season.record_rank, gold_team_season.luck_gap\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nORDER BY gold_team_season.luck_gap ASC\nLIMIT 10"
+        ]
+      }
+    ],
+    "join_specs": [
+      {
+        "id": "28c55b7b7dea573f9eb4463e213fb857",
+        "left": {
+          "identifier": "workspace.nfl.gold_team_games",
+          "alias": "gold_team_games"
+        },
+        "right": {
+          "identifier": "workspace.nfl.gold_team_season",
+          "alias": "gold_team_season"
+        },
+        "sql": [
+          "`gold_team_games`.`season` = `gold_team_season`.`season` AND `gold_team_games`.`team` = `gold_team_season`.`team`",
+          "--rt=FROM_RELATIONSHIP_TYPE_MANY_TO_ONE--"
+        ]
+      }
+    ]
+  }
+}

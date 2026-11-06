@@ -9,9 +9,8 @@ SELECT
   ROUND(-def_epa_per_play, 3) AS defense_epa,   -- sign flipped: higher = better defense
   ROUND(net_epa_per_play, 3)  AS net_epa,
   net_epa_rank,
-  RANK() OVER (PARTITION BY season ORDER BY (wins + 0.5 * ties) / games DESC) AS record_rank,
-  -- positive = record is better than the play (lucky); negative = playing better than the record (unlucky)
-  net_epa_rank - RANK() OVER (PARTITION BY season ORDER BY (wins + 0.5 * ties) / games DESC) AS luck_gap
+  record_rank,
+  luck_gap   -- governed in gold: negative = unlucky, positive = lucky
 FROM workspace.nfl.gold_team_season;
 -- @qb_leaders
 SELECT season, epa_rank, player_name, latest_team, dropbacks,

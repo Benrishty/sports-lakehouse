@@ -1,0 +1,34 @@
+[
+ [
+  "Which teams have a .500 or worse record but a top-10 net EPA this season?",
+  "SELECT gold_team_season.team, gold_team_season.wins, gold_team_season.losses, gold_team_season.ties, gold_team_season.net_epa_rank, ROUND(gold_team_season.net_epa_per_play, 3) AS net_epa_per_play\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\n  AND gold_team_season.wins <= gold_team_season.losses\n  AND gold_team_season.net_epa_rank <= 10\nORDER BY gold_team_season.net_epa_rank"
+ ],
+ [
+  "Who are the top 10 quarterbacks by EPA per dropback this season?",
+  "SELECT gold_qb_season.player_name, gold_qb_season.latest_team, gold_qb_season.dropbacks, ROUND(gold_qb_season.epa_per_dropback, 3) AS epa_per_dropback, ROUND(gold_qb_season.cpoe, 1) AS cpoe\nFROM workspace.nfl.gold_qb_season\nWHERE gold_qb_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_qb_season)\nORDER BY gold_qb_season.epa_per_dropback DESC\nLIMIT 10"
+ ],
+ [
+  "Which teams have the best record against the spread this season?",
+  "SELECT gold_team_season.team, gold_team_season.ats_covers, gold_team_season.ats_losses, ROUND(gold_team_season.avg_cover_margin, 1) AS avg_cover_margin, gold_team_season.wins, gold_team_season.losses\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nORDER BY gold_team_season.ats_covers DESC, gold_team_season.avg_cover_margin DESC\nLIMIT 10"
+ ],
+ [
+  "Which team had the best offense each season since 1999?",
+  "SELECT gold_team_season.season, gold_team_season.team, ROUND(gold_team_season.off_epa_per_play, 3) AS off_epa_per_play, gold_team_season.wins, gold_team_season.losses\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.off_epa_rank = 1\nORDER BY gold_team_season.season"
+ ],
+ [
+  "How has the Rams' net EPA trended game by game this season?",
+  "SELECT gold_team_games.week, gold_team_games.opponent, gold_team_games.outcome, gold_team_games.points_for, gold_team_games.points_against, ROUND(gold_team_games.net_epa_per_play, 3) AS net_epa_per_play\nFROM workspace.nfl.gold_team_games\nWHERE gold_team_games.team = 'LA' AND gold_team_games.game_type = 'REG'\n  AND gold_team_games.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_games)\nORDER BY gold_team_games.week"
+ ],
+ [
+  "What were the longest touchdown passes this season?",
+  "SELECT silver_plays.week, silver_plays.posteam AS team, silver_plays.defteam AS opponent, silver_plays.passer_player_name, silver_plays.receiver_player_name, silver_plays.yards_gained\nFROM workspace.nfl.silver_plays\nWHERE silver_plays.season = (SELECT MAX(season) FROM workspace.nfl.silver_plays)\n  AND silver_plays.season_type = 'REG'\n  AND silver_plays.is_pass = 1 AND silver_plays.touchdown = 1\n  AND silver_plays.interception = 0 AND silver_plays.fumble_lost = 0\nORDER BY silver_plays.yards_gained DESC\nLIMIT 10"
+ ],
+ [
+  "Which teams are the unluckiest this season?",
+  "SELECT gold_team_season.team, gold_team_season.wins, gold_team_season.losses, gold_team_season.ties, gold_team_season.net_epa_rank, gold_team_season.record_rank, gold_team_season.luck_gap\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nORDER BY gold_team_season.luck_gap ASC\nLIMIT 10"
+ ],
+ [
+  "Which teams have been the luckiest this season?",
+  "SELECT gold_team_season.team, gold_team_season.wins, gold_team_season.losses, gold_team_season.ties, gold_team_season.net_epa_rank, gold_team_season.record_rank, gold_team_season.luck_gap\nFROM workspace.nfl.gold_team_season\nWHERE gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nORDER BY gold_team_season.luck_gap DESC\nLIMIT 10"
+ ]
+]

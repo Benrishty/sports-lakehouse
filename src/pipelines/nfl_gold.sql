@@ -49,7 +49,7 @@ LEFT JOIN def d ON d.game_id = g.game_id AND d.team = g.team;
 
 -- ---------------------------------------------------------------- team × season
 CREATE OR REFRESH MATERIALIZED VIEW gold_team_season
-COMMENT "One row per team per regular season: record, record against the spread, play-weighted EPA efficiency and league rank."
+COMMENT "One row per team per regular season: record, record against the spread, play-weighted EPA efficiency, league ranks and luck_gap (negative = unlucky, positive = lucky)."
 AS
 WITH scrimmage AS (
   SELECT season, posteam, defteam, epa, success, is_pass
@@ -85,7 +85,13 @@ SELECT
   o.off_epa_per_play - d.def_epa_per_play AS net_epa_per_play,
   RANK() OVER (PARTITION BY o.season ORDER BY o.off_epa_per_play DESC) AS off_epa_rank,
   RANK() OVER (PARTITION BY o.season ORDER BY d.def_epa_per_play ASC) AS def_epa_rank,
-  RANK() OVER (PARTITION BY o.season ORDER BY o.off_epa_per_play - d.def_epa_per_play DESC) AS net_epa_rank
+  RANK() OVER (PARTITION BY o.season ORDER BY o.off_epa_per_play - d.def_epa_per_play DESC) AS net_epa_rank,
+  -- record rank by win percentage (ties count half), 1 = best record
+  RANK() OVER (PARTITION BY o.season ORDER BY (r.wins + 0.5 * r.ties) / r.games DESC) AS record_rank,
+  -- luck_gap = net_epa_rank - record_rank. Negative = UNLUCKY (plays better than its record);
+  -- positive = LUCKY (record better than its play). Stored here so nobody re-derives the sign.
+  RANK() OVER (PARTITION BY o.season ORDER BY o.off_epa_per_play - d.def_epa_per_play DESC)
+    - RANK() OVER (PARTITION BY o.season ORDER BY (r.wins + 0.5 * r.ties) / r.games DESC) AS luck_gap
 FROM off o
 JOIN def d ON d.season = o.season AND d.team = o.team
 LEFT JOIN record r ON r.season = o.season AND r.team = o.team;

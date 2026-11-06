@@ -127,4 +127,7 @@ orphans = spark.sql("""select season, team from gold_team_season
                        where season in (1999, 2010, 2020) and wins is null""").collect()
 assert not orphans, f"team-seasons with plays but no record (team-code mismatch): {orphans}"
 assert spark.sql("select count(*) c from silver_games where home_team in ('STL','SD','OAK') or away_team in ('STL','SD','OAK')").first().c == 0
+# luck_gap is governed in gold: LA 2026 is 4-4 (#15 record) but #4 in net EPA -> -11 (unlucky)
+la = spark.sql("select net_epa_rank, record_rank, luck_gap from gold_team_season where season = 2026 and team = 'LA'").first()
+assert (la.net_epa_rank, la.record_rank, la.luck_gap) == (4, 15, -11), la
 print("ALL CHECKS PASSED")
