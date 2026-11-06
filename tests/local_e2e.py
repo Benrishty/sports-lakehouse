@@ -1,0 +1,125 @@
+"""Local end-to-end check (no Databricks needed) of the NFL lakehouse code on real nflverse files.
+
+bronze: real apply_bronze_contract from the notebook, two snapshots of 2026 (second one edited)
+silver: real select logic from nfl_silver.py, with decorators stubbed; expectations applied as filters;
+        AUTO CDC SCD1 emulated as "latest _snapshot_ts per key"
+gold:   real nfl_gold.sql, each MV created as a temp view
+
+Run:
+  pip install "pyspark>=4.0"          # needs Java 17+
+  ./scripts/fetch_test_data.sh tests/data
+  python tests/local_e2e.py . tests/data
+"""
+import ast, datetime as dt, re, sys, types
+from pathlib import Path
+
+from pyspark.sql import SparkSession, DataFrame, Window, functions as F, types as T
+
+PROJ = Path(sys.argv[1])
+DATA = Path(sys.argv[2])
+spark = SparkSession.builder.master("local[4]").config("spark.sql.shuffle.partitions", "8") \
+    .config("spark.driver.memory", "4g").getOrCreate()
+spark.sparkContext.setLogLevel("ERROR")
+
+# ---- bronze: pull real functions out of the notebook source
+src = (PROJ / "src/ingest/nfl_ingest.py").read_text()
+mod = ast.parse(src)
+ns = {"F": F, "T": T, "DataFrame": DataFrame, "dt": dt, "re": re, "FIRST_SEASON": 1999}
+for node in mod.body:
+    if isinstance(node, ast.FunctionDef) and node.name in {"apply_bronze_contract", "snapshot_ts", "current_nfl_season", "resolve_seasons"}:
+        exec(compile(ast.Module([node], []), "nb", "exec"), ns)
+
+assert ns["current_nfl_season"](dt.date(2026, 11, 6)) == 2026
+assert ns["current_nfl_season"](dt.date(2027, 2, 1)) == 2026
+assert ns["resolve_seasons"]("backfill", dt.date(2026, 11, 6))[:2] == [1999, 2000]
+assert ns["resolve_seasons"]("2023, 2024", dt.date(2026, 11, 6)) == [2023, 2024]
+
+def bronze(path: Path, snap: str, mutate=None) -> DataFrame:
+    p = f"/Volumes/x/y/landing/nfl/pbp/snapshot={snap}/{path.name}"
+    df = ns["apply_bronze_contract"](spark.read.parquet(str(path)))
+    if mutate: df = mutate(df)
+    return (df.withColumn("_source_file", F.lit(p))
+              .withColumn("_snapshot_ts", F.lit(ns["snapshot_ts"](p)).cast("timestamp")))
+
+parts = [bronze(DATA / f"play_by_play_{y}.parquet", "20261101T000000Z") for y in (1999, 2010, 2020, 2025, 2026)]
+# second, later snapshot of 2026 where nflverse "corrected" one play's EPA
+first_key = parts[-1].select("game_id", "play_id").where("epa IS NOT NULL AND pass = 1").first()
+parts.append(bronze(DATA / "play_by_play_2026.parquet", "20261106T120000Z",
+                    lambda d: d.withColumn("epa", F.when((F.col("game_id") == first_key.game_id) & (F.col("play_id") == first_key.play_id), F.lit(9.99)).otherwise(F.col("epa")))))
+
+# every file must have an identical schema after the contract, or Delta append would fail
+schemas = {str(p.drop("_source_file", "_snapshot_ts").schema) for p in parts}
+assert len(schemas) == 1, "bronze contract does not unify schemas across seasons"
+bronze_pbp = parts[0]
+for p in parts[1:]: bronze_pbp = bronze_pbp.unionByName(p)
+games_p = "/Volumes/x/y/landing/nfl/games/snapshot=20261106T120000Z/games.parquet"
+bronze_games = ns["apply_bronze_contract"](spark.read.parquet(str(DATA / "games.parquet"))) \
+    .withColumn("_snapshot_ts", F.lit(ns["snapshot_ts"](games_p)).cast("timestamp"))
+print("bronze_pbp rows", bronze_pbp.count())
+
+# ---- silver: exec the pipeline file with a stub dp module
+views, expects, cdc = {}, {}, []
+def temporary_view(fn=None, **kw):
+    def deco(f):
+        views[f.__name__] = f; return f
+    return deco(fn) if fn else deco
+def expect_factory(kind):
+    def expect(name, cond):
+        def deco(f):
+            expects.setdefault(f.__name__, []).append((kind, name, cond)); return f
+        return deco
+    return expect
+dp = types.SimpleNamespace(temporary_view=temporary_view, expect=expect_factory("warn"),
+    expect_or_drop=expect_factory("drop"), create_streaming_table=lambda **kw: None,
+    create_auto_cdc_flow=lambda **kw: cdc.append(kw))
+fake_pkg = types.ModuleType("pyspark_stub"); fake_pkg.pipelines = dp
+
+class StubSpark:
+    conf = types.SimpleNamespace(get=lambda k: {"catalog": "x", "schema": "y"}[k])
+    class readStream:  # noqa: N801
+        @staticmethod
+        def table(name):
+            return {"x.y.bronze_pbp": bronze_pbp, "x.y.bronze_games": bronze_games}[name]
+
+silver_src = (PROJ / "src/pipelines/nfl_silver.py").read_text().replace(
+    "from pyspark import pipelines as dp", "dp = __dp__")
+exec(silver_src, {"__dp__": dp, "spark": StubSpark, "__name__": "silver"})
+
+for flow in cdc:
+    view = flow["source"]
+    df = views[view]()
+    for kind, name, cond in expects.get(view, []):
+        bad = df.where(f"NOT ({cond})").count()
+        print(f"  expectation {view}.{name} [{kind}] violations={bad}")
+        if kind == "drop": df = df.where(cond)
+    w = Window.partitionBy(*flow["keys"]).orderBy(F.col("_snapshot_ts").desc())
+    out = df.withColumn("_rn", F.row_number().over(w)).where("_rn = 1").drop("_rn")
+    out.createOrReplaceTempView(flow["target"])
+    print(flow["target"], out.count())
+
+# dedup check: latest snapshot wins
+v = spark.sql(f"select epa from silver_plays where game_id='{first_key.game_id}' and play_id={int(first_key.play_id)}").collect()
+assert len(v) == 1 and abs(v[0].epa - 9.99) < 1e-9, v
+n26 = spark.sql("select count(*) c from silver_plays where season=2026").first().c
+assert n26 == spark.read.parquet(str(DATA / "play_by_play_2026.parquet")).count(), n26
+
+# ---- gold
+gold = (PROJ / "src/pipelines/nfl_gold.sql").read_text()
+gold = "\n".join(l for l in gold.splitlines() if not l.strip().startswith("--"))
+for stmt in [s.strip() for s in gold.split(";") if s.strip()]:
+    m = re.match(r'CREATE OR REFRESH MATERIALIZED VIEW (\w+)\s+COMMENT "[^"]*"\s+AS\s+(.*)', stmt, re.S)
+    assert m, stmt[:80]
+    spark.sql(f"CREATE OR REPLACE TEMP VIEW {m.group(1)} AS {m.group(2)}")
+    print(m.group(1), spark.table(m.group(1)).count())
+
+spark.sql("""select season, team, wins, losses, ats_covers, round(off_epa_per_play,3) off, round(def_epa_per_play,3) def,
+             round(net_epa_per_play,3) net, net_epa_rank from gold_team_season where season in (2025, 2026) and net_epa_rank <= 3
+             order by season, net_epa_rank""").show(truncate=False)
+spark.sql("""select season, player_name, latest_team, dropbacks, round(epa_per_dropback,3) epa_db, round(cpoe,2) cpoe, epa_rank
+             from gold_qb_season where season = 2026 and epa_rank <= 5 order by epa_rank""").show(truncate=False)
+spark.sql("""select game_id, team, opponent, home_away, points_for, points_against, margin, expected_margin, cover_margin, ats_outcome,
+             round(net_epa_per_play,3) net from gold_team_games where season = 2026 order by game_date desc, game_id limit 4""").show(truncate=False)
+# sanity: each completed game appears exactly twice, margins mirror
+bad = spark.sql("select game_id from gold_team_games group by game_id having count(*) != 2 or sum(margin) != 0").count()
+assert bad == 0, bad
+print("ALL CHECKS PASSED")

@@ -1,0 +1,29 @@
+# Databricks Asset Bundle: everything in this repo deploys with `databricks bundle deploy`.
+bundle:
+  name: sports_lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog. Free Edition ships with one called `workspace`.
+    default: workspace
+  schema:
+    description: Schema holding the landing volume and the bronze/silver/gold tables.
+    default: nfl
+
+targets:
+  dev:
+    # development mode prefixes resource names with [dev <you>] and pauses schedules
+    mode: development
+    default: true
+    # workspace:
+    #   host: https://dbc-xxxxxxxx-xxxx.cloud.databricks.com   # or rely on `databricks auth login`
+
+  prod:
+    mode: production
+    workspace:
+      # one shared copy, not one per developer
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+      # host: https://dbc-xxxxxxxx-xxxx.cloud.databricks.com

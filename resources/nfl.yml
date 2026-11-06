@@ -1,0 +1,41 @@
+resources:
+  pipelines:
+    nfl_pipeline:
+      name: nfl_pipeline
+      serverless: true
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      channel: CURRENT
+      configuration:
+        catalog: ${var.catalog}
+        schema: ${var.schema}
+      libraries:
+        - file:
+            path: ../src/pipelines/nfl_silver.py
+        - file:
+            path: ../src/pipelines/nfl_gold.sql
+
+  jobs:
+    nfl_weekly_refresh:
+      name: nfl_weekly_refresh
+      # Tuesday 09:00 ET: after Monday Night Football, once nflverse has published the week.
+      schedule:
+        quartz_cron_expression: "0 0 9 ? * TUE"
+        timezone_id: America/New_York
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure: []   # add your email here
+      tasks:
+        - task_key: ingest
+          notebook_task:
+            notebook_path: ../src/ingest/nfl_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              seasons: current
+              download: "true"
+        - task_key: transform
+          depends_on:
+            - task_key: ingest
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.nfl_pipeline.id}
