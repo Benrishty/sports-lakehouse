@@ -141,7 +141,7 @@ WHERE value IS NOT NULL;
 
 -- ---------------------------------------------------------------- player snaps (player × season × team)
 CREATE OR REFRESH MATERIALIZED VIEW gold_player_snaps_season
-COMMENT "One row per player per regular season per team, 2012+: games, snaps and average snap share by phase, and a role (starter >= 60% of the team's snaps on his side of the ball in games played, rotation 25-60%, reserve < 25%). player_id is the gsis id via the PFR crosswalk."
+COMMENT "One row per player per regular season per team, 2013+: games, snaps and average snap share by phase, and a role (starter >= 60% of the team's snaps on his side of the ball in games played, rotation 25-60%, reserve < 25%). player_id is the gsis id via the PFR crosswalk."
 AS
 SELECT
   s.season, s.team, s.pfr_player_id, pl.player_id, COALESCE(pl.player_name, MAX(s.player_name)) AS player_name,
@@ -232,7 +232,7 @@ LEFT JOIN gold_player_defense_pbp dp ON dp.season = g.season AND dp.player_id = 
 
 -- ---------------------------------------------------------------- player value (active contracts × current season)
 CREATE OR REFRESH MATERIALIZED VIEW gold_player_value
-COMMENT "One row per player on an active contract: team, contract (APY $M, guarantees, final season, years left), age, current-season role and production, and a value score = production percentile minus cost percentile WITHIN the position group (players with >= 25% snap share). Positive = outperforming the contract (bargain), negative = overpaid relative to peers. Production metric by group (all from weekly-updated play-by-play and box scores): QB EPA/dropback, RB rushing+receiving EPA, WR/TE receiving EPA, OL snap share (no individual blocking data), EDGE/IDL sacks + QB hits per 100 defensive snaps, LB tackles per 100 snaps, CB/S passes defensed + interceptions per 100 snaps. K/P/LS not scored."
+COMMENT "One row per player on an active contract: team, contract (APY $M, guarantees, final season, years left), age, current-season role and production, and a value score = production percentile minus cost percentile WITHIN the position group (players with >= 25% snap share). Positive = outperforming the contract (bargain), negative = overpaid relative to peers. Production metric by group (all from weekly-updated play-by-play and box scores): QB EPA/dropback, RB rushing+receiving EPA, WR/TE receiving EPA, EDGE/IDL sacks + QB hits per 100 defensive snaps, LB tackles per 100 snaps, CB/S passes defensed + interceptions per 100 snaps. OL and K/P/LS are not scored (no individual blocking data in the sources)."
 AS
 WITH cur AS (SELECT MAX(season) AS season FROM silver_plays),
 c AS (
@@ -263,7 +263,6 @@ base AS (
       WHEN 'RB' THEN COALESCE(a.rushing_epa, 0) + COALESCE(a.receiving_epa, 0)
       WHEN 'WR' THEN a.receiving_epa
       WHEN 'TE' THEN a.receiving_epa
-      WHEN 'OL' THEN a.snap_share
       WHEN 'EDGE' THEN a.sacks_hits_per_100_snaps
       WHEN 'IDL' THEN a.sacks_hits_per_100_snaps
       WHEN 'LB' THEN a.tackles_per_100_snaps
@@ -284,7 +283,7 @@ scored AS (
 )
 SELECT b.*,
   CASE b.position_group WHEN 'QB' THEN 'EPA per dropback' WHEN 'RB' THEN 'Rush + receiving EPA'
-       WHEN 'WR' THEN 'Receiving EPA' WHEN 'TE' THEN 'Receiving EPA' WHEN 'OL' THEN 'Snap share'
+       WHEN 'WR' THEN 'Receiving EPA' WHEN 'TE' THEN 'Receiving EPA' WHEN 'OL' THEN 'Not scored: no individual blocking data'
        WHEN 'EDGE' THEN 'Sacks + QB hits per 100 snaps' WHEN 'IDL' THEN 'Sacks + QB hits per 100 snaps'
        WHEN 'LB' THEN 'Tackles per 100 snaps'
        WHEN 'CB' THEN 'Passes defensed + INT per 100 snaps' WHEN 'S' THEN 'Passes defensed + INT per 100 snaps' END AS production_metric_name,
@@ -388,12 +387,12 @@ WHERE i.season_type = 'REG';
 
 -- ---------------------------------------------------------------- starter games lost (team × season)
 CREATE OR REFRESH MATERIALIZED VIEW gold_team_injury_impact
-COMMENT "Games missed through injury per team per regular season (2012+): weeks a player was listed Out on the official report, total and for players whose season role was 'starter' (>= 60% snap share when playing), with the contract APY of starters affected this season, and league rank (1 = fewest starter games lost)."
+COMMENT "Games missed through injury per team per regular season (2013+, when snap roles exist): weeks a player was listed Out on the official report, total and for players whose season role was 'starter' (>= 60% snap share when playing), with the contract APY of starters affected this season, and league rank (1 = fewest starter games lost)."
 AS
 WITH out_weeks AS (
   SELECT i.season, i.team, i.player_id, COUNT(DISTINCT i.week) AS weeks_out
   FROM silver_injuries i
-  WHERE i.season_type = 'REG' AND i.report_status = 'Out' AND i.season >= 2012
+  WHERE i.season_type = 'REG' AND i.report_status = 'Out' AND i.season >= 2013
   GROUP BY i.season, i.team, i.player_id
 )
 SELECT o.season, o.team,
