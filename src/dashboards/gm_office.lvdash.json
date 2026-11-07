@@ -811,17 +811,20 @@
               "version": 3,
               "widgetType": "bar",
               "encodings": {
-                "x": {
+                "y": {
                   "fieldName": "metric",
+                  "displayName": "Metric",
+                  "axis": {
+                    "title": "Metric"
+                  },
                   "scale": {
                     "type": "categorical",
                     "sort": {
-                      "by": "y-reversed"
+                      "by": "x-reversed"
                     }
-                  },
-                  "displayName": "Team"
+                  }
                 },
-                "y": {
+                "x": {
                   "fieldName": "avg(percentile)",
                   "scale": {
                     "type": "quantitative"
@@ -1063,13 +1066,16 @@
               "encodings": {
                 "x": {
                   "fieldName": "position_group",
+                  "displayName": "Position group",
+                  "axis": {
+                    "title": "Position group"
+                  },
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "y-reversed"
                     }
-                  },
-                  "displayName": "Team"
+                  }
                 },
                 "y": {
                   "fieldName": "avg(vs_league_pts)",
@@ -2872,13 +2878,16 @@
               "encodings": {
                 "x": {
                   "fieldName": "draft_year",
+                  "displayName": "Draft class",
+                  "axis": {
+                    "title": "Draft class"
+                  },
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "y-reversed"
                     }
-                  },
-                  "displayName": "Team"
+                  }
                 },
                 "y": {
                   "fieldName": "avg(surplus_av)",
@@ -3966,13 +3975,16 @@
               "encodings": {
                 "x": {
                   "fieldName": "club",
+                  "displayName": "Team",
+                  "axis": {
+                    "title": "Team"
+                  },
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "y-reversed"
                     }
-                  },
-                  "displayName": "Team"
+                  }
                 },
                 "y": {
                   "fieldName": "avg(starter_games_out)",

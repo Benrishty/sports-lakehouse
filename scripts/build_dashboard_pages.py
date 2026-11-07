@@ -54,19 +54,23 @@ def table(name, ds, title, columns, desc=None):
                      "withRowNumber": False, "invisibleColumns": [], "encodings": {"columns": columns}, "frame": frame}}
 
 
-def bar(name, ds, title, x, y, ytitle, desc=None):
+def bar(name, ds, title, x, y, ytitle, desc=None, xtitle="Team", horizontal=False):
+    """Bar of AVG(y) by category x. horizontal=True puts categories down the side (better for long labels)."""
     agg = f"avg({y})"
     frame = {"showTitle": True, "title": title}
     if desc:
         frame.update(showDescription=True, description=desc)
+    cat = {"fieldName": x, "displayName": xtitle, "axis": {"title": xtitle}}
+    val = {"fieldName": agg, "scale": {"type": "quantitative"}, "displayName": ytitle, "axis": {"title": ytitle}}
+    if horizontal:
+        enc = {"y": {**cat, "scale": {"type": "categorical", "sort": {"by": "x-reversed"}}}, "x": val}
+    else:
+        enc = {"x": {**cat, "scale": {"type": "categorical", "sort": {"by": "y-reversed"}}}, "y": val}
     return {"name": name,
             "queries": [{"name": "main_query", "query": {"datasetName": ds, "disaggregated": False,
                                                           "fields": [{"name": x, "expression": f"`{x}`"},
                                                                      {"name": agg, "expression": f"AVG(`{y}`)"}]}}],
-            "spec": {"version": 3, "widgetType": "bar", "encodings": {
-                "x": {"fieldName": x, "scale": {"type": "categorical", "sort": {"by": "y-reversed"}}, "displayName": "Team"},
-                "y": {"fieldName": agg, "scale": {"type": "quantitative"}, "displayName": ytitle, "axis": {"title": ytitle}},
-                "label": {"show": True}}, "frame": frame}}
+            "spec": {"version": 3, "widgetType": "bar", "encodings": {**enc, "label": {"show": True}}, "frame": frame}}
 
 
 def season_filter(name, ds_names):

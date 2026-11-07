@@ -2519,13 +2519,16 @@
               "encodings": {
                 "x": {
                   "fieldName": "team",
+                  "displayName": "Team",
+                  "axis": {
+                    "title": "Team"
+                  },
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "y-reversed"
                     }
-                  },
-                  "displayName": "Team"
+                  }
                 },
                 "y": {
                   "fieldName": "avg(ats_cover_pct)",
@@ -2582,13 +2585,16 @@
               "encodings": {
                 "x": {
                   "fieldName": "team",
+                  "displayName": "Team",
+                  "axis": {
+                    "title": "Team"
+                  },
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "y-reversed"
                     }
-                  },
-                  "displayName": "Team"
+                  }
                 },
                 "y": {
                   "fieldName": "avg(over_pct)",

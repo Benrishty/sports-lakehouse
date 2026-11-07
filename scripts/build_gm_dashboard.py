@@ -59,7 +59,8 @@ LAYOUT = {
             col("phase", "Phase"), col("metric", "Metric"), col("value", "Us"), col("league_avg", "League avg"),
             col("league_rank", "Rank", "integer", "0"), col("tier", "Tier")],
             "Every phase of the game vs. the league."), (0, 5, 7, 15)),
-        (bar("rc_pct", "gm_percentiles", "Percentile by metric (100 = best in league)", "metric", "percentile", "Percentile"),
+        (bar("rc_pct", "gm_percentiles", "Percentile by metric (100 = best in league)", "metric", "percentile", "Percentile",
+             xtitle="Metric", horizontal=True),
          (7, 5, 5, 15)),
         (table("rc_fresh", "gm_freshness", "Data as of", [
             col("source", "Source"), col("latest_season", "Season", "integer", "0"), col("latest_week", "Week / games", "integer", "0"),
@@ -71,7 +72,7 @@ LAYOUT = {
                           "missed games do not count against anyone. Pay is APY ($M) from OverTheCap, not the exact cap hit. "
                           "OL and specialists are not scored (no individual blocking data)."), (0, 0, 12, 2)),
         (bar("cap_bar", "gm_cap_allocation", "Spend vs. league average by position group (percentage points of team APY)",
-             "position_group", "vs_league_pts", "Pts vs. league"), (0, 2, 6, 9)),
+             "position_group", "vs_league_pts", "Pts vs. league", xtitle="Position group"), (0, 2, 6, 9)),
         (table("cap_table", "gm_cap_allocation", "Cap allocation", [
             col("position_group", "Group"), col("players", "Players", "integer", "0"), col("apy_m", "APY $M", "float", "0.0"),
             col("team_share_pct", "Our share %", "float", "0.0"), col("league_avg_pct", "League %", "float", "0.0"),
@@ -112,7 +113,7 @@ LAYOUT = {
             col("record", "Record"), col("point_diff", "Pt diff", "integer", "0"), col("status", "")],
             "Ignores playoff results and traded picks."), (0, 2, 5, 20)),
         (bar("class_bar", "gm_draft_classes", "Our draft classes: AV above / below slot expectation", "draft_year",
-             "surplus_av", "Surplus AV"), (5, 2, 7, 8)),
+             "surplus_av", "Surplus AV", xtitle="Draft class"), (5, 2, 7, 8)),
         (table("best_miss_table", "gm_draft_best_misses", "Best value and biggest misses, rounds 1-3, last 15 classes", [
             col("kind", ""), col("headshot_url", "", **IMG, width=30), col("player_name", "Player"), col("position", "Pos"),
             col("draft_year", "Year", "integer", "0"), col("round", "Rd", "integer", "0"), col("pick", "Pick", "integer", "0"),
@@ -135,7 +136,7 @@ LAYOUT = {
             col("week", "Week", "integer", "0")], "Includes players on injured reserve / PUP / NFI, which the official weekly report omits."),
          (0, 2, 12, 11)),
         (bar("inj_bar", "gm_injury_league", "League: starter-games lost to injury this season", "club",
-             "starter_games_out", "Starter games out"), (0, 13, 12, 8)),
+             "starter_games_out", "Starter games out", xtitle="Team"), (0, 13, 12, 8)),
     ]),
 }
 
