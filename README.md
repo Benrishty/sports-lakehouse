@@ -97,6 +97,12 @@ Decisions worth calling out:
 - **Testing the AI changed the data model.** A Genie answer about "defense" filtered `phase = 'Defense'`
   and missed the pass rush (#31). The report card gained a `unit` column, and the answer is now right.
   Earlier Genie tests similarly moved `luck_gap` into gold and fixed a relocated-franchise join.
+- **Separate "how good" from "worth the money", and don't judge injured players on tiny samples.** An eye-test
+  check showed a very good tight end reading as merely "fair" (great player, paid like one) and an edge rusher
+  called overpaid after 3 games before going on IR. The value model now reports a performance tier and a
+  contract verdict separately, uses rates rather than totals, falls back to last season under 4 games, and
+  takes availability from weekly roster status, because the official injury report drops players once
+  they are on injured reserve.
 - **APY, not cap hit.** OverTheCap's contract file gives average annual value. Every surface labels it
   APY rather than calling it the cap.
 
