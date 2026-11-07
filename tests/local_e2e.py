@@ -205,6 +205,9 @@ assert burns.production_basis.startswith("last season (2025)"), burns.production
 likely = spark.sql("select * from gold_player_value where player_name = 'Isaiah Likely'").first()
 assert likely.performance_tier in ("elite", "very good"), (likely.performance_tier, likely.production_pct)
 assert likely.production_metric_name == "Receiving EPA per game", likely.production_metric_name
+nyg_games = spark.sql("select count(*) c from gold_team_games where season = 2026 and team = 'NYG' and game_type = 'REG'").first().c
+assert likely.team_games_on_roster == nyg_games and likely.games_played == nyg_games, (likely.games_played, likely.team_games_on_roster, nyg_games)
+assert burns.games_missed_injured == nyg_games - 3, burns.games_missed_injured   # every game since he went on IR, no more
 assert spark.sql("select count(*) c from gold_player_value where position_group = 'OL' and value_score is not null").first().c == 0
 ir = spark.sql("select status from gold_injury_report where player_name = 'Brian Burns'").first()
 assert ir is not None and ir.status == "injured reserve", ir                                   # IR players are listed

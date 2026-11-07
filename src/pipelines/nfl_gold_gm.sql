@@ -238,9 +238,14 @@ LEFT JOIN gold_player_defense_pbp dp ON dp.season = g.season AND dp.player_id = 
 CREATE OR REFRESH MATERIALIZED VIEW gold_player_availability_week
 COMMENT "One row per player per regular-season game week of his team, 2013+: did he play (any snaps), his roster status (active, inactive, injured reserve, PUP, NFI) and injury report status, and whether the week was missed through injury (did not play AND on IR/PUP/NFI or listed Out/Doubtful). The weekly injury report omits players on IR, so roster status is required to count serious injuries."
 AS
-WITH roster AS (
-  SELECT season, week, team, player_id, availability
-  FROM silver_roster_week WHERE game_type = 'REG' AND season >= 2013 AND availability <> 'practice squad'
+WITH played_weeks AS (  -- only weeks the team actually played: roster files can run ahead of the schedule
+  SELECT DISTINCT season, week, team FROM gold_team_games WHERE game_type = 'REG'
+),
+roster AS (
+  SELECT r.season, r.week, r.team, r.player_id, r.availability
+  FROM silver_roster_week r
+  JOIN played_weeks pw ON pw.season = r.season AND pw.week = r.week AND pw.team = r.team
+  WHERE r.game_type = 'REG' AND r.season >= 2013 AND r.availability <> 'practice squad'
 ),
 snaps AS (
   SELECT s.season, s.week, s.team, p.player_id, s.offense_snaps + s.defense_snaps + s.st_snaps AS snaps
@@ -443,29 +448,39 @@ WHERE season = (SELECT MAX(season) FROM gold_standings);
 
 -- ---------------------------------------------------------------- injury report (latest week)
 CREATE OR REFRESH MATERIALIZED VIEW gold_injury_report
-COMMENT "Who is hurt right now: the latest week of the current season, combining players on injured reserve / PUP / NFI (from weekly roster status, which the official report omits) with the official injury report (Out / Doubtful / Questionable / practice listings). Includes the player's role (this season, or last season if he has barely played), games missed through injury and contract APY."
+COMMENT "Who is hurt right now: for each team, its latest roster week of the current season (whether or not that game has been played yet), combining players on injured reserve / PUP / NFI (from weekly roster status, which the official report omits) with the official injury report (Out / Doubtful / Questionable / practice listings). Includes the player's role (this season, or last season if he has barely played), games played and missed through injury, and contract APY."
 AS
-WITH cur AS (SELECT MAX(season) AS season FROM gold_player_availability_week),
-wk AS (SELECT MAX(w.week) AS week FROM gold_player_availability_week w JOIN cur ON w.season = cur.season),
+WITH cur AS (SELECT MAX(season) AS season FROM silver_roster_week WHERE game_type = 'REG'),
+latest AS (
+  SELECT r.team, MAX(r.week) AS week FROM silver_roster_week r JOIN cur ON r.season = cur.season
+  WHERE r.game_type = 'REG' GROUP BY r.team
+),
+roster AS (
+  SELECT r.* FROM silver_roster_week r JOIN cur ON r.season = cur.season
+  JOIN latest l ON l.team = r.team AND l.week = r.week WHERE r.game_type = 'REG'
+),
+report AS (
+  SELECT i.* FROM silver_injuries i JOIN cur ON i.season = cur.season
+  JOIN latest l ON l.team = i.team AND l.week = i.week WHERE i.season_type = 'REG'
+),
 role AS (
   SELECT player_id, MAX_BY(role, season) AS role, MAX_BY(snap_share, season) AS snap_share
   FROM gold_player_advanced
   WHERE season >= (SELECT season FROM cur) - 1 AND role IS NOT NULL AND games >= 3
   GROUP BY player_id
 )
-SELECT w.season, w.week, w.team, w.player_id, COALESCE(pl.player_name, w.player_id) AS player_name, pl.position,
-  CASE WHEN w.availability IN ('injured reserve', 'PUP', 'NFI') THEN w.availability
-       ELSE COALESCE(w.report_status, 'practice report only') END AS status,
-  COALESCE(w.injury, av.latest_injury) AS injury,
-  pl.headshot_url, r.role, r.snap_share, av.games_played, av.games_missed_injured, av.last_week_played, v.apy_m
-FROM gold_player_availability_week w
-JOIN cur ON w.season = cur.season
-JOIN wk ON w.week = wk.week
-LEFT JOIN silver_players pl ON pl.player_id = w.player_id
-LEFT JOIN gold_player_availability av ON av.season = w.season AND av.player_id = w.player_id
-LEFT JOIN role r ON r.player_id = w.player_id
-LEFT JOIN gold_player_value v ON v.player_id = w.player_id
-WHERE w.availability IN ('injured reserve', 'PUP', 'NFI') OR w.report_status IS NOT NULL OR w.injury IS NOT NULL;
+SELECT r.season, r.week, r.team, r.player_id, COALESCE(pl.player_name, r.player_name) AS player_name, r.position,
+  CASE WHEN r.availability IN ('injured reserve', 'PUP', 'NFI') THEN r.availability
+       ELSE COALESCE(rp.report_status, 'practice report only') END AS status,
+  COALESCE(rp.report_primary_injury, av.latest_injury) AS injury,
+  pl.headshot_url, ro.role, ro.snap_share, av.games_played, av.games_missed_injured, av.last_week_played, v.apy_m
+FROM roster r
+LEFT JOIN report rp ON rp.team = r.team AND rp.player_id = r.player_id
+LEFT JOIN silver_players pl ON pl.player_id = r.player_id
+LEFT JOIN gold_player_availability av ON av.season = r.season AND av.player_id = r.player_id
+LEFT JOIN role ro ON ro.player_id = r.player_id
+LEFT JOIN gold_player_value v ON v.player_id = r.player_id
+WHERE r.availability IN ('injured reserve', 'PUP', 'NFI') OR rp.report_status IS NOT NULL OR rp.report_primary_injury IS NOT NULL;
 
 -- ---------------------------------------------------------------- starter games lost (team × season)
 CREATE OR REFRESH MATERIALIZED VIEW gold_team_injury_impact
