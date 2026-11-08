@@ -78,9 +78,13 @@ including PFR-style `GNB`/`KAN` and nicknames like "Giants", map to one franchis
 | Where do we pick? | `gold_draft_order_projection` |
 | What are injuries costing us? | `gold_injury_report`, `gold_team_injury_impact` (starter-games lost) |
 | How current is this? | `gold_data_freshness` |
+| Tell me about this player | `gold_player_profile`, `gold_player_percentiles`: position-specific advanced metrics with direction-aware percentiles |
 
 **GM Office dashboard** (`src/dashboards/gm_office.lvdash.json`): Report Card, Roster & Cap,
-Personnel, Draft and Health pages behind one dashboard-wide Team picker. League-wide datasets name
+Personnel, Draft and Health pages behind one dashboard-wide Team picker, plus a **Player Profile** drill-down
+(any player in the league: snapshot, percentiles vs. his position, career, game log, trends, availability,
+combine) with its own Player picker. The GM marts publish to their own schema, `workspace.nfl_gm`, because
+Free Edition caps a schema at 100 tables and every pipeline table also has a hidden backing table. League-wide datasets name
 their team column `club`, so the picker leaves them whole.
 
 **Specialized Genie agents** (`genie/agents/`): a Team Performance Analyst, a Roster & Cap Strategist,

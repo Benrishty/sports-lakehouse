@@ -67,6 +67,10 @@
   [
    "Which quarterbacks have played for us this season and in which weeks?",
    "SELECT silver_player_week.player_name, MIN(silver_player_week.week) AS first_week, MAX(silver_player_week.week) AS last_week, COUNT(*) AS games, SUM(silver_player_week.attempts) AS attempts, ROUND(SUM(silver_player_week.passing_epa), 1) AS passing_epa\nFROM workspace.nfl.silver_player_week\nWHERE silver_player_week.season = (SELECT MAX(season) FROM workspace.nfl.silver_player_week) AND silver_player_week.season_type = 'REG'\n  AND silver_player_week.team = 'NYG' AND silver_player_week.position = 'QB' AND silver_player_week.attempts > 0\nGROUP BY silver_player_week.player_name\nORDER BY first_week"
+  ],
+  [
+   "Give me a scouting profile of Malik Nabers: strengths and weaknesses versus other receivers.",
+   "SELECT gold_player_profile.player_name, gold_player_profile.position, gold_player_profile.club, gold_player_profile.age, gold_player_profile.draft, ROUND(gold_player_profile.apy_m, 1) AS apy_m, gold_player_profile.performance_tier, gold_player_profile.contract_verdict, gold_player_percentiles.season, gold_player_percentiles.metric, ROUND(gold_player_percentiles.value, 3) AS value, ROUND(100 * gold_player_percentiles.percentile) AS percentile, gold_player_percentiles.better, gold_player_percentiles.peers\nFROM workspace.nfl_gm.gold_player_profile\nJOIN workspace.nfl_gm.gold_player_percentiles ON gold_player_percentiles.player_id = gold_player_profile.player_id\nWHERE gold_player_profile.player_name = 'Malik Nabers' AND gold_player_percentiles.qualified\n  AND gold_player_percentiles.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_percentiles WHERE player_id = gold_player_profile.player_id AND qualified)\nORDER BY gold_player_percentiles.percentile DESC"
   ]
  ],
  "draft": [
