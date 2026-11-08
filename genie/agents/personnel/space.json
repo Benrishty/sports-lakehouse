@@ -31,13 +31,79 @@
   "data_sources": {
     "tables": [
       {
-        "identifier": "workspace.nfl.gold_data_freshness",
+        "identifier": "workspace.nfl.gold_qb_season",
+        "description": [
+          "QB efficiency per season (min 100 dropbacks): EPA per dropback, CPOE."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.silver_player_week",
+        "description": [
+          "Weekly box scores: who played which week and how."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Team that week."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl_gm.gold_data_freshness",
         "description": [
           "How current each source is."
         ]
       },
       {
-        "identifier": "workspace.nfl.gold_injury_report",
+        "identifier": "workspace.nfl_gm.gold_injury_report",
         "description": [
           "Latest official injury report with each player's role and snap share."
         ],
@@ -80,7 +146,7 @@
         ]
       },
       {
-        "identifier": "workspace.nfl.gold_player_advanced",
+        "identifier": "workspace.nfl_gm.gold_player_advanced",
         "description": [
           "One row per player per season: box score, EPA, snap share and role, Next Gen Stats (2016+), PFR advanced (2018+, lags in-season) and play-by-play defensive credit per 100 snaps."
         ],
@@ -173,7 +239,7 @@
         ]
       },
       {
-        "identifier": "workspace.nfl.gold_player_snaps_season",
+        "identifier": "workspace.nfl_gm.gold_player_snaps_season",
         "description": [
           "Snap counts and role per player, season and team (2013+)."
         ],
@@ -212,72 +278,6 @@
             "enable_entity_matching": true
           }
         ]
-      },
-      {
-        "identifier": "workspace.nfl.gold_qb_season",
-        "description": [
-          "QB efficiency per season (min 100 dropbacks): EPA per dropback, CPOE."
-        ],
-        "column_configs": [
-          {
-            "column_name": "player_name",
-            "description": [
-              "Player full name exactly as stored, e.g. 'Brian Burns'."
-            ],
-            "synonyms": [
-              "player",
-              "name"
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          },
-          {
-            "column_name": "season",
-            "description": [
-              "NFL season, labelled by the year it starts."
-            ],
-            "synonyms": [
-              "year"
-            ]
-          }
-        ]
-      },
-      {
-        "identifier": "workspace.nfl.silver_player_week",
-        "description": [
-          "Weekly box scores: who played which week and how."
-        ],
-        "column_configs": [
-          {
-            "column_name": "player_name",
-            "description": [
-              "Player full name exactly as stored, e.g. 'Brian Burns'."
-            ],
-            "synonyms": [
-              "player",
-              "name"
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          },
-          {
-            "column_name": "season",
-            "description": [
-              "NFL season, labelled by the year it starts."
-            ],
-            "synonyms": [
-              "year"
-            ]
-          },
-          {
-            "column_name": "team",
-            "description": [
-              "Team that week."
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          }
-        ]
       }
     ]
   },
@@ -306,7 +306,7 @@
           "Which wide receivers create the most separation this season?"
         ],
         "sql": [
-          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.targets, gold_player_advanced.receiving_yards, ROUND(gold_player_advanced.avg_separation, 2) AS separation_yds, ROUND(gold_player_advanced.receiving_epa, 1) AS receiving_epa\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.position = 'WR' AND gold_player_advanced.avg_separation IS NOT NULL\nORDER BY gold_player_advanced.avg_separation DESC\nLIMIT 10"
+          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.targets, gold_player_advanced.receiving_yards, ROUND(gold_player_advanced.avg_separation, 2) AS separation_yds, ROUND(gold_player_advanced.receiving_epa, 1) AS receiving_epa\nFROM workspace.nfl_gm.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_advanced) AND gold_player_advanced.position = 'WR' AND gold_player_advanced.avg_separation IS NOT NULL\nORDER BY gold_player_advanced.avg_separation DESC\nLIMIT 10"
         ]
       },
       {
@@ -324,7 +324,7 @@
           "Which pass rushers get to the quarterback most often per snap this season?"
         ],
         "sql": [
-          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.position, gold_player_advanced.defense_snaps, gold_player_advanced.sacks_plus_hits, ROUND(gold_player_advanced.sacks_hits_per_100_snaps, 1) AS sacks_hits_per_100_snaps\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.position_group IN ('DL', 'LB') AND gold_player_advanced.defense_snaps >= 150\nORDER BY gold_player_advanced.sacks_hits_per_100_snaps DESC\nLIMIT 10"
+          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.position, gold_player_advanced.defense_snaps, gold_player_advanced.sacks_plus_hits, ROUND(gold_player_advanced.sacks_hits_per_100_snaps, 1) AS sacks_hits_per_100_snaps\nFROM workspace.nfl_gm.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_advanced) AND gold_player_advanced.position_group IN ('DL', 'LB') AND gold_player_advanced.defense_snaps >= 150\nORDER BY gold_player_advanced.sacks_hits_per_100_snaps DESC\nLIMIT 10"
         ]
       },
       {
@@ -333,7 +333,7 @@
           "Who is on our injury report this week and how important are they?"
         ],
         "sql": [
-          "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.status, gold_injury_report.injury, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.games_missed_injured, gold_injury_report.week\nFROM workspace.nfl.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE WHEN gold_injury_report.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN gold_injury_report.status = 'Out' THEN 2 WHEN gold_injury_report.status = 'Doubtful' THEN 3 WHEN gold_injury_report.status = 'Questionable' THEN 4 ELSE 5 END, gold_injury_report.snap_share DESC"
+          "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.status, gold_injury_report.injury, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.games_missed_injured, gold_injury_report.week\nFROM workspace.nfl_gm.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE WHEN gold_injury_report.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN gold_injury_report.status = 'Out' THEN 2 WHEN gold_injury_report.status = 'Doubtful' THEN 3 WHEN gold_injury_report.status = 'Questionable' THEN 4 ELSE 5 END, gold_injury_report.snap_share DESC"
         ]
       },
       {
@@ -342,7 +342,7 @@
           "Which running backs have the best rush yards over expected per carry this season (minimum 50 carries)?"
         ],
         "sql": [
-          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.carries, gold_player_advanced.rushing_yards, ROUND(gold_player_advanced.rush_yards_over_expected_per_att, 2) AS ryoe_per_att, ROUND(100 * gold_player_advanced.stacked_box_rate, 1) AS stacked_box_pct\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.carries >= 50 AND gold_player_advanced.rush_yards_over_expected_per_att IS NOT NULL\nORDER BY gold_player_advanced.rush_yards_over_expected_per_att DESC\nLIMIT 10"
+          "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.carries, gold_player_advanced.rushing_yards, ROUND(gold_player_advanced.rush_yards_over_expected_per_att, 2) AS ryoe_per_att, ROUND(100 * gold_player_advanced.stacked_box_rate, 1) AS stacked_box_pct\nFROM workspace.nfl_gm.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_advanced) AND gold_player_advanced.carries >= 50 AND gold_player_advanced.rush_yards_over_expected_per_att IS NOT NULL\nORDER BY gold_player_advanced.rush_yards_over_expected_per_att DESC\nLIMIT 10"
         ]
       }
     ]

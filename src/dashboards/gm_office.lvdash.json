@@ -33,8 +33,8 @@
         "                   WHEN 'below average' THEN '\ud83d\udfe0 below average' WHEN 'bottom tier' THEN '\ud83d\udd34 bottom tier'\n",
         "                   ELSE '\u26aa tendency' END AS tier,\n",
         "       ROUND(100 * r.percentile) AS percentile\n",
-        "FROM workspace.nfl.gold_team_report_card r\n",
-        "WHERE r.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card)\n",
+        "FROM workspace.nfl_gm.gold_team_report_card r\n",
+        "WHERE r.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_report_card)\n",
         "ORDER BY r.metric_order\n"
       ]
     },
@@ -43,15 +43,15 @@
       "displayName": "gm_percentiles",
       "queryLines": [
         "SELECT r.team, CONCAT(r.phase, ': ', r.metric) AS metric, ROUND(100 * r.percentile) AS percentile\n",
-        "FROM workspace.nfl.gold_team_report_card r\n",
-        "WHERE r.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card) AND r.better <> 'neutral'\n"
+        "FROM workspace.nfl_gm.gold_team_report_card r\n",
+        "WHERE r.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_report_card) AND r.better <> 'neutral'\n"
       ]
     },
     {
       "name": "gm_freshness",
       "displayName": "gm_freshness",
       "queryLines": [
-        "SELECT source, latest_season, latest_week, cadence FROM workspace.nfl.gold_data_freshness\n"
+        "SELECT source, latest_season, latest_week, cadence FROM workspace.nfl_gm.gold_data_freshness\n"
       ]
     },
     {
@@ -63,7 +63,7 @@
         "       ROUND(100 * c.league_avg_share, 1) AS league_avg_pct,\n",
         "       ROUND(100 * c.top8_avg_share, 1) AS top8_avg_pct,\n",
         "       ROUND(100 * c.share_vs_league, 1) AS vs_league_pts\n",
-        "FROM workspace.nfl.gold_cap_allocation c\n",
+        "FROM workspace.nfl_gm.gold_cap_allocation c\n",
         "ORDER BY c.share_of_team_apy DESC\n"
       ]
     },
@@ -84,7 +84,7 @@
         "       ROUND(100 * v.value_score) AS value_score,\n",
         "       CASE WHEN v.production_basis LIKE 'last season%' THEN 'last season' WHEN v.production_basis = 'this season' THEN 'this season'\n",
         "            ELSE 'not scored' END AS judged_on\n",
-        "FROM workspace.nfl.gold_player_value v\n",
+        "FROM workspace.nfl_gm.gold_player_value v\n",
         "WHERE v.team IS NOT NULL\n",
         "ORDER BY v.apy_m DESC\n"
       ]
@@ -95,7 +95,7 @@
       "queryLines": [
         "SELECT v.team, v.headshot_url, v.player_name, v.position_group, v.age, ROUND(v.apy_m, 1) AS apy_m,\n",
         "       v.final_season, v.role, ROUND(100 * v.snap_share) AS snap_pct, ROUND(100 * v.value_score) AS value_score\n",
-        "FROM workspace.nfl.gold_player_value v\n",
+        "FROM workspace.nfl_gm.gold_player_value v\n",
         "WHERE v.team IS NOT NULL AND v.final_season <= v.season\n",
         "ORDER BY v.snap_share DESC NULLS LAST, v.apy_m DESC\n"
       ]
@@ -114,8 +114,8 @@
         "       ROUND(a.sacks_hits_per_100_snaps, 1) AS sacks_hits_per_100,\n",
         "       ROUND(a.ball_production_per_100_snaps, 1) AS pd_int_per_100,\n",
         "       ROUND(a.tackles_per_100_snaps, 1) AS tackles_per_100\n",
-        "FROM workspace.nfl.gold_player_advanced a\n",
-        "WHERE a.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND a.snap_share >= 0.25\n",
+        "FROM workspace.nfl_gm.gold_player_advanced a\n",
+        "WHERE a.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_advanced) AND a.snap_share >= 0.25\n",
         "ORDER BY CASE a.position_group WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 WHEN 'OL' THEN 5\n",
         "                               WHEN 'DL' THEN 6 WHEN 'LB' THEN 7 WHEN 'DB' THEN 8 ELSE 9 END, a.snap_share DESC\n"
       ]
@@ -127,7 +127,7 @@
         "SELECT p.projected_pick, t.team_logo_url, p.team AS club, p.team_name,\n",
         "       CONCAT(p.wins, '-', p.losses, IF(p.ties > 0, CONCAT('-', p.ties), '')) AS record,\n",
         "       ROUND(p.point_differential) AS point_diff, IF(p.in_playoff_position, 'playoff spot', '') AS status\n",
-        "FROM workspace.nfl.gold_draft_order_projection p\n",
+        "FROM workspace.nfl_gm.gold_draft_order_projection p\n",
         "LEFT JOIN workspace.nfl.silver_teams t ON t.team = p.team\n",
         "ORDER BY p.projected_pick\n"
       ]
@@ -137,7 +137,7 @@
       "displayName": "gm_draft_classes",
       "queryLines": [
         "SELECT g.team, g.draft_year, g.picks, g.hits, g.pro_bowlers, ROUND(g.surplus_av, 1) AS surplus_av, g.class_rank\n",
-        "FROM workspace.nfl.gold_draft_team_grades g\n",
+        "FROM workspace.nfl_gm.gold_draft_team_grades g\n",
         "ORDER BY g.draft_year\n"
       ]
     },
@@ -152,8 +152,8 @@
         "         ROW_NUMBER() OVER (PARTITION BY d.team ORDER BY d.surplus_av DESC) AS best_rk,\n",
         "         ROW_NUMBER() OVER (PARTITION BY d.team ORDER BY d.surplus_av ASC) AS miss_rk,\n",
         "         IF(ROW_NUMBER() OVER (PARTITION BY d.team ORDER BY d.surplus_av DESC) <= 10, '\u2705 best value', '\u274c biggest miss') AS kind\n",
-        "  FROM workspace.nfl.gold_draft_pick_value d\n",
-        "  WHERE d.is_mature AND d.draft_year >= (SELECT MAX(draft_year) - 15 FROM workspace.nfl.gold_draft_pick_value) AND d.round <= 3\n",
+        "  FROM workspace.nfl_gm.gold_draft_pick_value d\n",
+        "  WHERE d.is_mature AND d.draft_year >= (SELECT MAX(draft_year) - 15 FROM workspace.nfl_gm.gold_draft_pick_value) AND d.round <= 3\n",
         ")\n",
         "WHERE best_rk <= 10 OR miss_rk <= 10\n",
         "ORDER BY kind DESC, surplus_av DESC\n"
@@ -165,7 +165,7 @@
       "queryLines": [
         "SELECT round, position, picks, ROUND(100 * hit_rate) AS hit_rate_pct, ROUND(100 * pro_bowl_rate) AS pro_bowl_pct,\n",
         "       ROUND(avg_av_for_team, 1) AS avg_av\n",
-        "FROM workspace.nfl.gold_draft_position_value\n",
+        "FROM workspace.nfl_gm.gold_draft_position_value\n",
         "WHERE round <= 3 AND picks >= 15\n",
         "ORDER BY round, hit_rate DESC\n"
       ]
@@ -177,7 +177,7 @@
         "SELECT i.team, i.headshot_url, i.player_name, i.position, i.status, i.injury, i.role,\n",
         "       ROUND(100 * i.snap_share) AS snap_pct, i.games_played, i.games_missed_injured, i.last_week_played,\n",
         "       ROUND(i.apy_m, 1) AS apy_m, i.week\n",
-        "FROM workspace.nfl.gold_injury_report i\n",
+        "FROM workspace.nfl_gm.gold_injury_report i\n",
         "ORDER BY CASE WHEN i.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN i.status = 'Out' THEN 2 WHEN i.status = 'Doubtful' THEN 3\n",
         "              WHEN i.status = 'Questionable' THEN 4 ELSE 5 END, i.snap_share DESC NULLS LAST\n"
       ]
@@ -188,8 +188,8 @@
       "queryLines": [
         "SELECT x.team AS club, x.starter_games_out, x.starters_missing_time, x.player_games_out,\n",
         "       x.rank_fewest_starter_games_lost\n",
-        "FROM workspace.nfl.gold_team_injury_impact x\n",
-        "WHERE x.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_injury_impact)\n",
+        "FROM workspace.nfl_gm.gold_team_injury_impact x\n",
+        "WHERE x.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_injury_impact)\n",
         "ORDER BY x.starter_games_out DESC\n"
       ]
     },
@@ -207,7 +207,7 @@
         "       CASE WHEN f.production_basis LIKE 'last season%' THEN 'last season' ELSE f.production_basis END AS judged_on,\n",
         "       CONCAT(COALESCE(f.games_played, 0), ' of ', COALESCE(f.team_games_on_roster, 0)) AS games_this_season,\n",
         "       COALESCE(f.current_roster_status, 'not on a roster') AS status, f.latest_injury\n",
-        "FROM workspace.nfl.gold_player_profile f\n"
+        "FROM workspace.nfl_gm.gold_player_profile f\n"
       ]
     },
     {
@@ -226,9 +226,9 @@
         "            WHEN p.percentile >= 0.4 THEN '\ud83d\udfe1 average' ELSE '\ud83d\udd34 below average' END AS grade,\n",
         "       CASE p.better WHEN 'lower' THEN 'lower is better' WHEN 'higher' THEN 'higher is better' ELSE 'tendency' END AS direction,\n",
         "       p.peers\n",
-        "FROM workspace.nfl.gold_player_percentiles p\n",
-        "JOIN workspace.nfl.gold_player_profile f ON f.player_id = p.player_id\n",
-        "JOIN (SELECT player_id, MAX(season) AS season FROM workspace.nfl.gold_player_percentiles WHERE qualified GROUP BY player_id) latest\n",
+        "FROM workspace.nfl_gm.gold_player_percentiles p\n",
+        "JOIN workspace.nfl_gm.gold_player_profile f ON f.player_id = p.player_id\n",
+        "JOIN (SELECT player_id, MAX(season) AS season FROM workspace.nfl_gm.gold_player_percentiles WHERE qualified GROUP BY player_id) latest\n",
         "  ON latest.player_id = p.player_id AND latest.season = p.season\n",
         "WHERE p.qualified\n",
         "ORDER BY metric_order\n"
@@ -245,8 +245,8 @@
         "       ROUND(COALESCE(a.passing_epa, 0) + COALESCE(a.rushing_epa, 0) + COALESCE(a.receiving_epa, 0), 1) AS offensive_epa,\n",
         "       a.tackles, a.sacks, a.sacks_plus_hits, a.passes_defensed, a.pbp_interceptions AS def_ints,\n",
         "       ROUND(a.fantasy_points_ppr, 1) AS fantasy_ppr\n",
-        "FROM workspace.nfl.gold_player_advanced a\n",
-        "JOIN workspace.nfl.gold_player_profile f ON f.player_id = a.player_id\n",
+        "FROM workspace.nfl_gm.gold_player_advanced a\n",
+        "JOIN workspace.nfl_gm.gold_player_profile f ON f.player_id = a.player_id\n",
         "ORDER BY a.season DESC\n"
       ]
     },
@@ -261,7 +261,7 @@
         "       w.def_tackles_solo + w.def_tackle_assists AS tackles, w.def_sacks AS sacks, w.def_interceptions AS def_ints,\n",
         "       ROUND(w.fantasy_points_ppr, 1) AS fantasy_ppr\n",
         "FROM workspace.nfl.silver_player_week w\n",
-        "JOIN workspace.nfl.gold_player_profile f ON f.player_id = w.player_id\n",
+        "JOIN workspace.nfl_gm.gold_player_profile f ON f.player_id = w.player_id\n",
         "LEFT JOIN workspace.nfl.silver_players pl ON pl.player_id = w.player_id\n",
         "LEFT JOIN workspace.nfl.silver_snap_counts s ON s.pfr_player_id = pl.pfr_id AND s.season = w.season AND s.week = w.week\n",
         "WHERE w.season = (SELECT MAX(season) FROM workspace.nfl.silver_player_week) AND w.season_type = 'REG'\n",
@@ -275,9 +275,9 @@
         "SELECT f.player_label, av.season, av.games_played, av.games_missed_injured, av.games_missed_other,\n",
         "       av.current_roster_status AS season_end_status,\n",
         "       CONCAT_WS(', ', ARRAY_DISTINCT(COLLECT_LIST(w.injury))) AS injuries_reported\n",
-        "FROM workspace.nfl.gold_player_availability av\n",
-        "JOIN workspace.nfl.gold_player_profile f ON f.player_id = av.player_id\n",
-        "LEFT JOIN workspace.nfl.gold_player_availability_week w ON w.season = av.season AND w.player_id = av.player_id AND w.injury IS NOT NULL\n",
+        "FROM workspace.nfl_gm.gold_player_availability av\n",
+        "JOIN workspace.nfl_gm.gold_player_profile f ON f.player_id = av.player_id\n",
+        "LEFT JOIN workspace.nfl_gm.gold_player_availability_week w ON w.season = av.season AND w.player_id = av.player_id AND w.injury IS NOT NULL\n",
         "GROUP BY f.player_label, av.season, av.games_played, av.games_missed_injured, av.games_missed_other, av.current_roster_status\n",
         "ORDER BY av.season DESC\n"
       ]
@@ -290,7 +290,7 @@
         "       c.forty, c.bench, c.vertical, c.broad_jump, c.cone, c.shuttle\n",
         "FROM workspace.nfl.silver_combine c\n",
         "JOIN workspace.nfl.silver_players pl ON pl.pfr_id = c.pfr_player_id\n",
-        "JOIN workspace.nfl.gold_player_profile f ON f.player_id = pl.player_id\n"
+        "JOIN workspace.nfl_gm.gold_player_profile f ON f.player_id = pl.player_id\n"
       ]
     }
   ],

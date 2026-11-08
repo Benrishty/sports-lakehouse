@@ -31,7 +31,56 @@
   "data_sources": {
     "tables": [
       {
-        "identifier": "workspace.nfl.gold_draft_order_projection",
+        "identifier": "workspace.nfl.gold_standings",
+        "description": [
+          "Current standings (drives the projected order)."
+        ],
+        "column_configs": [
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl.silver_combine",
+        "description": [
+          "Scouting combine: 40, bench, vertical, broad, 3-cone, shuttle. Join gold_draft_pick_value on pfr_player_id."
+        ],
+        "column_configs": [
+          {
+            "column_name": "player_name",
+            "description": [
+              "Player full name exactly as stored, e.g. 'Brian Burns'."
+            ],
+            "synonyms": [
+              "player",
+              "name"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl_gm.gold_draft_order_projection",
         "description": [
           "Projected first-round order if the season ended today (ignores playoffs and traded picks)."
         ],
@@ -51,7 +100,7 @@
         ]
       },
       {
-        "identifier": "workspace.nfl.gold_draft_pick_value",
+        "identifier": "workspace.nfl_gm.gold_draft_pick_value",
         "description": [
           "Every pick since 2000 with career value for the drafting team (dr_av) vs. the slot average (expected_dr_av). surplus_av meaningful only when is_mature (5+ years since the draft). hit = 3+ seasons as a starter."
         ],
@@ -100,7 +149,7 @@
         ]
       },
       {
-        "identifier": "workspace.nfl.gold_draft_position_value",
+        "identifier": "workspace.nfl_gm.gold_draft_position_value",
         "description": [
           "League-wide hit rate, Pro Bowl rate and average AV by position and round (mature classes since 2000)."
         ],
@@ -116,7 +165,7 @@
         ]
       },
       {
-        "identifier": "workspace.nfl.gold_draft_team_grades",
+        "identifier": "workspace.nfl_gm.gold_draft_team_grades",
         "description": [
           "Per team per mature class: picks, hits, Pro Bowlers, surplus AV vs. slot, class rank."
         ],
@@ -129,55 +178,6 @@
             "synonyms": [
               "club",
               "franchise"
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          }
-        ]
-      },
-      {
-        "identifier": "workspace.nfl.gold_standings",
-        "description": [
-          "Current standings (drives the projected order)."
-        ],
-        "column_configs": [
-          {
-            "column_name": "season",
-            "description": [
-              "NFL season, labelled by the year it starts."
-            ],
-            "synonyms": [
-              "year"
-            ]
-          },
-          {
-            "column_name": "team",
-            "description": [
-              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
-            ],
-            "synonyms": [
-              "club",
-              "franchise"
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          }
-        ]
-      },
-      {
-        "identifier": "workspace.nfl.silver_combine",
-        "description": [
-          "Scouting combine: 40, bench, vertical, broad, 3-cone, shuttle. Join gold_draft_pick_value on pfr_player_id."
-        ],
-        "column_configs": [
-          {
-            "column_name": "player_name",
-            "description": [
-              "Player full name exactly as stored, e.g. 'Brian Burns'."
-            ],
-            "synonyms": [
-              "player",
-              "name"
             ],
             "enable_format_assistance": true,
             "enable_entity_matching": true
@@ -212,7 +212,7 @@
           "Which teams have drafted best over the last ten mature classes?"
         ],
         "sql": [
-          "SELECT gold_draft_team_grades.team, SUM(gold_draft_team_grades.picks) AS picks, SUM(gold_draft_team_grades.hits) AS hits, SUM(gold_draft_team_grades.pro_bowlers) AS pro_bowlers, ROUND(SUM(gold_draft_team_grades.surplus_av), 1) AS surplus_av\nFROM workspace.nfl.gold_draft_team_grades\nWHERE gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl.gold_draft_team_grades)\nGROUP BY gold_draft_team_grades.team\nORDER BY surplus_av DESC\nLIMIT 10"
+          "SELECT gold_draft_team_grades.team, SUM(gold_draft_team_grades.picks) AS picks, SUM(gold_draft_team_grades.hits) AS hits, SUM(gold_draft_team_grades.pro_bowlers) AS pro_bowlers, ROUND(SUM(gold_draft_team_grades.surplus_av), 1) AS surplus_av\nFROM workspace.nfl_gm.gold_draft_team_grades\nWHERE gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl_gm.gold_draft_team_grades)\nGROUP BY gold_draft_team_grades.team\nORDER BY surplus_av DESC\nLIMIT 10"
         ]
       },
       {
@@ -221,7 +221,7 @@
           "What were our best and worst draft picks since 2010?"
         ],
         "sql": [
-          "SELECT gold_draft_pick_value.draft_year, gold_draft_pick_value.round, gold_draft_pick_value.pick, gold_draft_pick_value.player_name, gold_draft_pick_value.position, gold_draft_pick_value.dr_av, ROUND(gold_draft_pick_value.expected_dr_av, 1) AS slot_expected_av, ROUND(gold_draft_pick_value.surplus_av, 1) AS surplus_av\nFROM workspace.nfl.gold_draft_pick_value\nWHERE gold_draft_pick_value.team = 'NYG' AND gold_draft_pick_value.draft_year >= 2010 AND gold_draft_pick_value.is_mature\nORDER BY gold_draft_pick_value.surplus_av DESC"
+          "SELECT gold_draft_pick_value.draft_year, gold_draft_pick_value.round, gold_draft_pick_value.pick, gold_draft_pick_value.player_name, gold_draft_pick_value.position, gold_draft_pick_value.dr_av, ROUND(gold_draft_pick_value.expected_dr_av, 1) AS slot_expected_av, ROUND(gold_draft_pick_value.surplus_av, 1) AS surplus_av\nFROM workspace.nfl_gm.gold_draft_pick_value\nWHERE gold_draft_pick_value.team = 'NYG' AND gold_draft_pick_value.draft_year >= 2010 AND gold_draft_pick_value.is_mature\nORDER BY gold_draft_pick_value.surplus_av DESC"
         ]
       },
       {
@@ -230,7 +230,7 @@
           "How have our draft classes performed over the last ten mature classes compared with the league?"
         ],
         "sql": [
-          "SELECT gold_draft_team_grades.draft_year, gold_draft_team_grades.picks, gold_draft_team_grades.hits, gold_draft_team_grades.pro_bowlers, ROUND(gold_draft_team_grades.surplus_av, 1) AS surplus_av, gold_draft_team_grades.class_rank\nFROM workspace.nfl.gold_draft_team_grades\nWHERE gold_draft_team_grades.team = 'NYG' AND gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl.gold_draft_team_grades)\nORDER BY gold_draft_team_grades.draft_year"
+          "SELECT gold_draft_team_grades.draft_year, gold_draft_team_grades.picks, gold_draft_team_grades.hits, gold_draft_team_grades.pro_bowlers, ROUND(gold_draft_team_grades.surplus_av, 1) AS surplus_av, gold_draft_team_grades.class_rank\nFROM workspace.nfl_gm.gold_draft_team_grades\nWHERE gold_draft_team_grades.team = 'NYG' AND gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl_gm.gold_draft_team_grades)\nORDER BY gold_draft_team_grades.draft_year"
         ]
       },
       {
@@ -239,7 +239,7 @@
           "Where are we projected to pick in the next draft?"
         ],
         "sql": [
-          "SELECT gold_draft_order_projection.draft_year, gold_draft_order_projection.projected_pick, gold_draft_order_projection.team, gold_draft_order_projection.wins, gold_draft_order_projection.losses, gold_draft_order_projection.ties, gold_draft_order_projection.in_playoff_position\nFROM workspace.nfl.gold_draft_order_projection\nWHERE gold_draft_order_projection.team = 'NYG'"
+          "SELECT gold_draft_order_projection.draft_year, gold_draft_order_projection.projected_pick, gold_draft_order_projection.team, gold_draft_order_projection.wins, gold_draft_order_projection.losses, gold_draft_order_projection.ties, gold_draft_order_projection.in_playoff_position\nFROM workspace.nfl_gm.gold_draft_order_projection\nWHERE gold_draft_order_projection.team = 'NYG'"
         ]
       },
       {
@@ -248,7 +248,7 @@
           "Which positions have the best hit rate in the first round?"
         ],
         "sql": [
-          "SELECT gold_draft_position_value.position, gold_draft_position_value.picks, ROUND(100 * gold_draft_position_value.hit_rate, 1) AS hit_rate_pct, ROUND(100 * gold_draft_position_value.pro_bowl_rate, 1) AS pro_bowl_pct, ROUND(gold_draft_position_value.avg_av_for_team, 1) AS avg_av\nFROM workspace.nfl.gold_draft_position_value\nWHERE gold_draft_position_value.round = 1 AND gold_draft_position_value.picks >= 15\nORDER BY gold_draft_position_value.hit_rate DESC"
+          "SELECT gold_draft_position_value.position, gold_draft_position_value.picks, ROUND(100 * gold_draft_position_value.hit_rate, 1) AS hit_rate_pct, ROUND(100 * gold_draft_position_value.pro_bowl_rate, 1) AS pro_bowl_pct, ROUND(gold_draft_position_value.avg_av_for_team, 1) AS avg_av\nFROM workspace.nfl_gm.gold_draft_position_value\nWHERE gold_draft_position_value.round = 1 AND gold_draft_position_value.picks >= 15\nORDER BY gold_draft_position_value.hit_rate DESC"
         ]
       },
       {
@@ -257,7 +257,7 @@
           "What did first-round edge rushers who became Pro Bowlers run in the 40-yard dash?"
         ],
         "sql": [
-          "SELECT gold_draft_pick_value.player_name, gold_draft_pick_value.draft_year, gold_draft_pick_value.pick, silver_combine.forty, silver_combine.weight_lb, gold_draft_pick_value.probowls\nFROM workspace.nfl.gold_draft_pick_value\nJOIN workspace.nfl.silver_combine ON silver_combine.pfr_player_id = gold_draft_pick_value.pfr_player_id\nWHERE gold_draft_pick_value.round = 1 AND gold_draft_pick_value.position IN ('DE', 'OLB', 'EDGE') AND gold_draft_pick_value.probowls > 0 AND silver_combine.forty IS NOT NULL\nORDER BY silver_combine.forty"
+          "SELECT gold_draft_pick_value.player_name, gold_draft_pick_value.draft_year, gold_draft_pick_value.pick, silver_combine.forty, silver_combine.weight_lb, gold_draft_pick_value.probowls\nFROM workspace.nfl_gm.gold_draft_pick_value\nJOIN workspace.nfl.silver_combine ON silver_combine.pfr_player_id = gold_draft_pick_value.pfr_player_id\nWHERE gold_draft_pick_value.round = 1 AND gold_draft_pick_value.position IN ('DE', 'OLB', 'EDGE') AND gold_draft_pick_value.probowls > 0 AND silver_combine.forty IS NOT NULL\nORDER BY silver_combine.forty"
         ]
       }
     ]

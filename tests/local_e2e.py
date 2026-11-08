@@ -147,6 +147,7 @@ assert n26 == spark.read.parquet(str(DATA / "play_by_play_2026.parquet")).count(
 
 # ---- gold
 gold = "\n;\n".join((PROJ / f"src/pipelines/{f}").read_text() for f in ("nfl_gold.sql", "nfl_gold_gm.sql"))
+gold = gold.replace("${catalog}.nfl_gm.", "")  # one local namespace; on Databricks the GM views publish to nfl_gm
 gold = "\n".join(l for l in gold.splitlines() if not l.strip().startswith("--"))
 for stmt in [s.strip() for s in gold.split(";") if s.strip()]:
     m = re.match(r'CREATE OR REFRESH MATERIALIZED VIEW (\w+)\s+COMMENT "[^"]*"\s+AS\s+(.*)', stmt, re.S)

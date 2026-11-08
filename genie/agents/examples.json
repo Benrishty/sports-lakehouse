@@ -2,11 +2,11 @@
  "team_performance": [
   [
    "What are our three biggest weaknesses this season?",
-   "SELECT gold_team_report_card.phase, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, ROUND(gold_team_report_card.league_avg, 3) AS league_avg, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card)\n  AND gold_team_report_card.team = 'NYG' AND gold_team_report_card.better <> 'neutral'\nORDER BY gold_team_report_card.league_rank DESC, gold_team_report_card.percentile ASC\nLIMIT 3"
+   "SELECT gold_team_report_card.phase, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, ROUND(gold_team_report_card.league_avg, 3) AS league_avg, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl_gm.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_report_card)\n  AND gold_team_report_card.team = 'NYG' AND gold_team_report_card.better <> 'neutral'\nORDER BY gold_team_report_card.league_rank DESC, gold_team_report_card.percentile ASC\nLIMIT 3"
   ],
   [
    "How has our pass rush changed from last season to this season?",
-   "SELECT gold_team_report_card.season, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl.gold_team_report_card\nWHERE gold_team_report_card.team = 'NYG' AND gold_team_report_card.phase = 'Pass rush'\n  AND gold_team_report_card.season >= (SELECT MAX(season) - 1 FROM workspace.nfl.gold_team_report_card)\nORDER BY gold_team_report_card.metric, gold_team_report_card.season"
+   "SELECT gold_team_report_card.season, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl_gm.gold_team_report_card\nWHERE gold_team_report_card.team = 'NYG' AND gold_team_report_card.phase = 'Pass rush'\n  AND gold_team_report_card.season >= (SELECT MAX(season) - 1 FROM workspace.nfl_gm.gold_team_report_card)\nORDER BY gold_team_report_card.metric, gold_team_report_card.season"
   ],
   [
    "How does our offense perform with play action versus without it this season?",
@@ -14,11 +14,11 @@
   ],
   [
    "Which teams are best on third down this season?",
-   "SELECT gold_team_report_card.team, ROUND(100 * gold_team_report_card.value, 1) AS third_down_pct, gold_team_report_card.league_rank\nFROM workspace.nfl.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card)\n  AND gold_team_report_card.metric = '3rd down conversion rate'\nORDER BY gold_team_report_card.league_rank\nLIMIT 10"
+   "SELECT gold_team_report_card.team, ROUND(100 * gold_team_report_card.value, 1) AS third_down_pct, gold_team_report_card.league_rank\nFROM workspace.nfl_gm.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_report_card)\n  AND gold_team_report_card.metric = '3rd down conversion rate'\nORDER BY gold_team_report_card.league_rank\nLIMIT 10"
   ],
   [
    "How do we do in the red zone on offense and defense?",
-   "SELECT gold_team_phase_stats.side, gold_team_phase_stats.red_zone_trips, ROUND(100 * gold_team_phase_stats.red_zone_td_rate, 1) AS red_zone_td_pct\nFROM workspace.nfl.gold_team_phase_stats\nWHERE gold_team_phase_stats.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_phase_stats) AND gold_team_phase_stats.team = 'NYG'"
+   "SELECT gold_team_phase_stats.side, gold_team_phase_stats.red_zone_trips, ROUND(100 * gold_team_phase_stats.red_zone_td_rate, 1) AS red_zone_td_pct\nFROM workspace.nfl_gm.gold_team_phase_stats\nWHERE gold_team_phase_stats.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_phase_stats) AND gold_team_phase_stats.team = 'NYG'"
   ],
   [
    "Are we in playoff position right now?",
@@ -28,41 +28,41 @@
  "roster_cap": [
   [
    "Who are our most overpaid players right now?",
-   "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.performance_tier, gold_player_value.contract_verdict, ROUND(100 * gold_player_value.value_score) AS value_score, gold_player_value.production_metric_name, ROUND(gold_player_value.production_metric, 2) AS production, gold_player_value.production_basis, gold_player_value.games_played, gold_player_value.games_missed_injured, gold_player_value.current_roster_status\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score ASC\nLIMIT 10"
+   "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.performance_tier, gold_player_value.contract_verdict, ROUND(100 * gold_player_value.value_score) AS value_score, gold_player_value.production_metric_name, ROUND(gold_player_value.production_metric, 2) AS production, gold_player_value.production_basis, gold_player_value.games_played, gold_player_value.games_missed_injured, gold_player_value.current_roster_status\nFROM workspace.nfl_gm.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score ASC\nLIMIT 10"
   ],
   [
    "Which of our starters have contracts ending after this season?",
-   "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, ROUND(100 * gold_player_value.snap_share) AS snap_pct, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.final_season <= gold_player_value.season AND gold_player_value.role = 'starter'\nORDER BY gold_player_value.snap_share DESC"
+   "SELECT gold_player_value.player_name, gold_player_value.position_group, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, ROUND(100 * gold_player_value.snap_share) AS snap_pct, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl_gm.gold_player_value\nWHERE gold_player_value.team = 'NYG' AND gold_player_value.final_season <= gold_player_value.season AND gold_player_value.role = 'starter'\nORDER BY gold_player_value.snap_share DESC"
   ],
   [
    "How does our spending by position group compare to the league and the top teams?",
-   "SELECT gold_cap_allocation.position_group, ROUND(gold_cap_allocation.apy_m, 1) AS apy_m, ROUND(100 * gold_cap_allocation.share_of_team_apy, 1) AS our_share_pct, ROUND(100 * gold_cap_allocation.league_avg_share, 1) AS league_avg_pct, ROUND(100 * gold_cap_allocation.top8_avg_share, 1) AS top8_avg_pct\nFROM workspace.nfl.gold_cap_allocation\nWHERE gold_cap_allocation.team = 'NYG'\nORDER BY gold_cap_allocation.share_of_team_apy DESC"
+   "SELECT gold_cap_allocation.position_group, ROUND(gold_cap_allocation.apy_m, 1) AS apy_m, ROUND(100 * gold_cap_allocation.share_of_team_apy, 1) AS our_share_pct, ROUND(100 * gold_cap_allocation.league_avg_share, 1) AS league_avg_pct, ROUND(100 * gold_cap_allocation.top8_avg_share, 1) AS top8_avg_pct\nFROM workspace.nfl_gm.gold_cap_allocation\nWHERE gold_cap_allocation.team = 'NYG'\nORDER BY gold_cap_allocation.share_of_team_apy DESC"
   ],
   [
    "Find edge rushers on other teams who are outperforming their contracts.",
-   "SELECT gold_player_value.player_name, gold_player_value.team, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.final_season, gold_player_value.sacks_plus_hits, ROUND(gold_player_value.production_metric, 2) AS sacks_hits_per_100_snaps, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl.gold_player_value\nWHERE gold_player_value.position_group = 'EDGE' AND gold_player_value.team <> 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score DESC\nLIMIT 10"
+   "SELECT gold_player_value.player_name, gold_player_value.team, gold_player_value.age, ROUND(gold_player_value.apy_m, 1) AS apy_m, gold_player_value.final_season, gold_player_value.sacks_plus_hits, ROUND(gold_player_value.production_metric, 2) AS sacks_hits_per_100_snaps, ROUND(100 * gold_player_value.value_score) AS value_score\nFROM workspace.nfl_gm.gold_player_value\nWHERE gold_player_value.position_group = 'EDGE' AND gold_player_value.team <> 'NYG' AND gold_player_value.value_score IS NOT NULL\nORDER BY gold_player_value.value_score DESC\nLIMIT 10"
   ],
   [
    "Which teams spend the most on quarterbacks and how efficient are their quarterbacks?",
-   "SELECT gold_cap_allocation.team, ROUND(gold_cap_allocation.apy_m, 1) AS qb_apy_m, ROUND(100 * gold_cap_allocation.share_of_team_apy, 1) AS qb_share_pct, gold_team_season.net_epa_rank, gold_team_season.wins, gold_team_season.losses\nFROM workspace.nfl.gold_cap_allocation\nJOIN workspace.nfl.gold_team_season ON gold_team_season.team = gold_cap_allocation.team AND gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nWHERE gold_cap_allocation.position_group = 'QB'\nORDER BY gold_cap_allocation.apy_m DESC\nLIMIT 10"
+   "SELECT gold_cap_allocation.team, ROUND(gold_cap_allocation.apy_m, 1) AS qb_apy_m, ROUND(100 * gold_cap_allocation.share_of_team_apy, 1) AS qb_share_pct, gold_team_season.net_epa_rank, gold_team_season.wins, gold_team_season.losses\nFROM workspace.nfl_gm.gold_cap_allocation\nJOIN workspace.nfl.gold_team_season ON gold_team_season.team = gold_cap_allocation.team AND gold_team_season.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_season)\nWHERE gold_cap_allocation.position_group = 'QB'\nORDER BY gold_cap_allocation.apy_m DESC\nLIMIT 10"
   ]
  ],
  "personnel": [
   [
    "Which wide receivers create the most separation this season?",
-   "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.targets, gold_player_advanced.receiving_yards, ROUND(gold_player_advanced.avg_separation, 2) AS separation_yds, ROUND(gold_player_advanced.receiving_epa, 1) AS receiving_epa\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.position = 'WR' AND gold_player_advanced.avg_separation IS NOT NULL\nORDER BY gold_player_advanced.avg_separation DESC\nLIMIT 10"
+   "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.targets, gold_player_advanced.receiving_yards, ROUND(gold_player_advanced.avg_separation, 2) AS separation_yds, ROUND(gold_player_advanced.receiving_epa, 1) AS receiving_epa\nFROM workspace.nfl_gm.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_advanced) AND gold_player_advanced.position = 'WR' AND gold_player_advanced.avg_separation IS NOT NULL\nORDER BY gold_player_advanced.avg_separation DESC\nLIMIT 10"
   ],
   [
    "Which running backs have the best rush yards over expected per carry this season (minimum 50 carries)?",
-   "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.carries, gold_player_advanced.rushing_yards, ROUND(gold_player_advanced.rush_yards_over_expected_per_att, 2) AS ryoe_per_att, ROUND(100 * gold_player_advanced.stacked_box_rate, 1) AS stacked_box_pct\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.carries >= 50 AND gold_player_advanced.rush_yards_over_expected_per_att IS NOT NULL\nORDER BY gold_player_advanced.rush_yards_over_expected_per_att DESC\nLIMIT 10"
+   "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.carries, gold_player_advanced.rushing_yards, ROUND(gold_player_advanced.rush_yards_over_expected_per_att, 2) AS ryoe_per_att, ROUND(100 * gold_player_advanced.stacked_box_rate, 1) AS stacked_box_pct\nFROM workspace.nfl_gm.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_advanced) AND gold_player_advanced.carries >= 50 AND gold_player_advanced.rush_yards_over_expected_per_att IS NOT NULL\nORDER BY gold_player_advanced.rush_yards_over_expected_per_att DESC\nLIMIT 10"
   ],
   [
    "Which pass rushers get to the quarterback most often per snap this season?",
-   "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.position, gold_player_advanced.defense_snaps, gold_player_advanced.sacks_plus_hits, ROUND(gold_player_advanced.sacks_hits_per_100_snaps, 1) AS sacks_hits_per_100_snaps\nFROM workspace.nfl.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl.gold_player_advanced) AND gold_player_advanced.position_group IN ('DL', 'LB') AND gold_player_advanced.defense_snaps >= 150\nORDER BY gold_player_advanced.sacks_hits_per_100_snaps DESC\nLIMIT 10"
+   "SELECT gold_player_advanced.player_name, gold_player_advanced.latest_team, gold_player_advanced.position, gold_player_advanced.defense_snaps, gold_player_advanced.sacks_plus_hits, ROUND(gold_player_advanced.sacks_hits_per_100_snaps, 1) AS sacks_hits_per_100_snaps\nFROM workspace.nfl_gm.gold_player_advanced\nWHERE gold_player_advanced.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_player_advanced) AND gold_player_advanced.position_group IN ('DL', 'LB') AND gold_player_advanced.defense_snaps >= 150\nORDER BY gold_player_advanced.sacks_hits_per_100_snaps DESC\nLIMIT 10"
   ],
   [
    "Who is on our injury report this week and how important are they?",
-   "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.status, gold_injury_report.injury, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.games_missed_injured, gold_injury_report.week\nFROM workspace.nfl.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE WHEN gold_injury_report.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN gold_injury_report.status = 'Out' THEN 2 WHEN gold_injury_report.status = 'Doubtful' THEN 3 WHEN gold_injury_report.status = 'Questionable' THEN 4 ELSE 5 END, gold_injury_report.snap_share DESC"
+   "SELECT gold_injury_report.player_name, gold_injury_report.position, gold_injury_report.status, gold_injury_report.injury, gold_injury_report.role, ROUND(100 * gold_injury_report.snap_share) AS snap_pct, gold_injury_report.games_missed_injured, gold_injury_report.week\nFROM workspace.nfl_gm.gold_injury_report\nWHERE gold_injury_report.team = 'NYG'\nORDER BY CASE WHEN gold_injury_report.status IN ('injured reserve', 'PUP', 'NFI') THEN 1 WHEN gold_injury_report.status = 'Out' THEN 2 WHEN gold_injury_report.status = 'Doubtful' THEN 3 WHEN gold_injury_report.status = 'Questionable' THEN 4 ELSE 5 END, gold_injury_report.snap_share DESC"
   ],
   [
    "Which quarterbacks have played for us this season and in which weeks?",
@@ -72,27 +72,27 @@
  "draft": [
   [
    "Where are we projected to pick in the next draft?",
-   "SELECT gold_draft_order_projection.draft_year, gold_draft_order_projection.projected_pick, gold_draft_order_projection.team, gold_draft_order_projection.wins, gold_draft_order_projection.losses, gold_draft_order_projection.ties, gold_draft_order_projection.in_playoff_position\nFROM workspace.nfl.gold_draft_order_projection\nWHERE gold_draft_order_projection.team = 'NYG'"
+   "SELECT gold_draft_order_projection.draft_year, gold_draft_order_projection.projected_pick, gold_draft_order_projection.team, gold_draft_order_projection.wins, gold_draft_order_projection.losses, gold_draft_order_projection.ties, gold_draft_order_projection.in_playoff_position\nFROM workspace.nfl_gm.gold_draft_order_projection\nWHERE gold_draft_order_projection.team = 'NYG'"
   ],
   [
    "How have our draft classes performed over the last ten mature classes compared with the league?",
-   "SELECT gold_draft_team_grades.draft_year, gold_draft_team_grades.picks, gold_draft_team_grades.hits, gold_draft_team_grades.pro_bowlers, ROUND(gold_draft_team_grades.surplus_av, 1) AS surplus_av, gold_draft_team_grades.class_rank\nFROM workspace.nfl.gold_draft_team_grades\nWHERE gold_draft_team_grades.team = 'NYG' AND gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl.gold_draft_team_grades)\nORDER BY gold_draft_team_grades.draft_year"
+   "SELECT gold_draft_team_grades.draft_year, gold_draft_team_grades.picks, gold_draft_team_grades.hits, gold_draft_team_grades.pro_bowlers, ROUND(gold_draft_team_grades.surplus_av, 1) AS surplus_av, gold_draft_team_grades.class_rank\nFROM workspace.nfl_gm.gold_draft_team_grades\nWHERE gold_draft_team_grades.team = 'NYG' AND gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl_gm.gold_draft_team_grades)\nORDER BY gold_draft_team_grades.draft_year"
   ],
   [
    "Which teams have drafted best over the last ten mature classes?",
-   "SELECT gold_draft_team_grades.team, SUM(gold_draft_team_grades.picks) AS picks, SUM(gold_draft_team_grades.hits) AS hits, SUM(gold_draft_team_grades.pro_bowlers) AS pro_bowlers, ROUND(SUM(gold_draft_team_grades.surplus_av), 1) AS surplus_av\nFROM workspace.nfl.gold_draft_team_grades\nWHERE gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl.gold_draft_team_grades)\nGROUP BY gold_draft_team_grades.team\nORDER BY surplus_av DESC\nLIMIT 10"
+   "SELECT gold_draft_team_grades.team, SUM(gold_draft_team_grades.picks) AS picks, SUM(gold_draft_team_grades.hits) AS hits, SUM(gold_draft_team_grades.pro_bowlers) AS pro_bowlers, ROUND(SUM(gold_draft_team_grades.surplus_av), 1) AS surplus_av\nFROM workspace.nfl_gm.gold_draft_team_grades\nWHERE gold_draft_team_grades.draft_year >= (SELECT MAX(draft_year) - 9 FROM workspace.nfl_gm.gold_draft_team_grades)\nGROUP BY gold_draft_team_grades.team\nORDER BY surplus_av DESC\nLIMIT 10"
   ],
   [
    "Which positions have the best hit rate in the first round?",
-   "SELECT gold_draft_position_value.position, gold_draft_position_value.picks, ROUND(100 * gold_draft_position_value.hit_rate, 1) AS hit_rate_pct, ROUND(100 * gold_draft_position_value.pro_bowl_rate, 1) AS pro_bowl_pct, ROUND(gold_draft_position_value.avg_av_for_team, 1) AS avg_av\nFROM workspace.nfl.gold_draft_position_value\nWHERE gold_draft_position_value.round = 1 AND gold_draft_position_value.picks >= 15\nORDER BY gold_draft_position_value.hit_rate DESC"
+   "SELECT gold_draft_position_value.position, gold_draft_position_value.picks, ROUND(100 * gold_draft_position_value.hit_rate, 1) AS hit_rate_pct, ROUND(100 * gold_draft_position_value.pro_bowl_rate, 1) AS pro_bowl_pct, ROUND(gold_draft_position_value.avg_av_for_team, 1) AS avg_av\nFROM workspace.nfl_gm.gold_draft_position_value\nWHERE gold_draft_position_value.round = 1 AND gold_draft_position_value.picks >= 15\nORDER BY gold_draft_position_value.hit_rate DESC"
   ],
   [
    "What were our best and worst draft picks since 2010?",
-   "SELECT gold_draft_pick_value.draft_year, gold_draft_pick_value.round, gold_draft_pick_value.pick, gold_draft_pick_value.player_name, gold_draft_pick_value.position, gold_draft_pick_value.dr_av, ROUND(gold_draft_pick_value.expected_dr_av, 1) AS slot_expected_av, ROUND(gold_draft_pick_value.surplus_av, 1) AS surplus_av\nFROM workspace.nfl.gold_draft_pick_value\nWHERE gold_draft_pick_value.team = 'NYG' AND gold_draft_pick_value.draft_year >= 2010 AND gold_draft_pick_value.is_mature\nORDER BY gold_draft_pick_value.surplus_av DESC"
+   "SELECT gold_draft_pick_value.draft_year, gold_draft_pick_value.round, gold_draft_pick_value.pick, gold_draft_pick_value.player_name, gold_draft_pick_value.position, gold_draft_pick_value.dr_av, ROUND(gold_draft_pick_value.expected_dr_av, 1) AS slot_expected_av, ROUND(gold_draft_pick_value.surplus_av, 1) AS surplus_av\nFROM workspace.nfl_gm.gold_draft_pick_value\nWHERE gold_draft_pick_value.team = 'NYG' AND gold_draft_pick_value.draft_year >= 2010 AND gold_draft_pick_value.is_mature\nORDER BY gold_draft_pick_value.surplus_av DESC"
   ],
   [
    "What did first-round edge rushers who became Pro Bowlers run in the 40-yard dash?",
-   "SELECT gold_draft_pick_value.player_name, gold_draft_pick_value.draft_year, gold_draft_pick_value.pick, silver_combine.forty, silver_combine.weight_lb, gold_draft_pick_value.probowls\nFROM workspace.nfl.gold_draft_pick_value\nJOIN workspace.nfl.silver_combine ON silver_combine.pfr_player_id = gold_draft_pick_value.pfr_player_id\nWHERE gold_draft_pick_value.round = 1 AND gold_draft_pick_value.position IN ('DE', 'OLB', 'EDGE') AND gold_draft_pick_value.probowls > 0 AND silver_combine.forty IS NOT NULL\nORDER BY silver_combine.forty"
+   "SELECT gold_draft_pick_value.player_name, gold_draft_pick_value.draft_year, gold_draft_pick_value.pick, silver_combine.forty, silver_combine.weight_lb, gold_draft_pick_value.probowls\nFROM workspace.nfl_gm.gold_draft_pick_value\nJOIN workspace.nfl.silver_combine ON silver_combine.pfr_player_id = gold_draft_pick_value.pfr_player_id\nWHERE gold_draft_pick_value.round = 1 AND gold_draft_pick_value.position IN ('DE', 'OLB', 'EDGE') AND gold_draft_pick_value.probowls > 0 AND silver_combine.forty IS NOT NULL\nORDER BY silver_combine.forty"
   ]
  ]
 }

@@ -31,12 +31,6 @@
   "data_sources": {
     "tables": [
       {
-        "identifier": "workspace.nfl.gold_data_freshness",
-        "description": [
-          "How current each source is."
-        ]
-      },
-      {
         "identifier": "workspace.nfl.gold_standings",
         "description": [
           "Division ranks and approximate playoff seeds (2002+), tiebreakers approximated by point differential."
@@ -96,122 +90,6 @@
             "synonyms": [
               "club",
               "franchise"
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          }
-        ]
-      },
-      {
-        "identifier": "workspace.nfl.gold_team_phase_stats",
-        "description": [
-          "Wide per-team, per-season, per-side (offense / defense) efficiency stats behind the report card, incl. red-zone trips."
-        ],
-        "column_configs": [
-          {
-            "column_name": "season",
-            "description": [
-              "NFL season, labelled by the year it starts."
-            ],
-            "synonyms": [
-              "year"
-            ]
-          },
-          {
-            "column_name": "side",
-            "description": [
-              "'offense' = plays the team ran, 'defense' = plays it faced."
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          },
-          {
-            "column_name": "team",
-            "description": [
-              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
-            ],
-            "synonyms": [
-              "club",
-              "franchise"
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          }
-        ]
-      },
-      {
-        "identifier": "workspace.nfl.gold_team_report_card",
-        "description": [
-          "One row per team per season per metric with league rank, percentile and tier. The first place to look for strengths and weaknesses."
-        ],
-        "column_configs": [
-          {
-            "column_name": "better",
-            "description": [
-              "'higher', 'lower' (lower is better) or 'neutral' (a tendency, not a grade)."
-            ]
-          },
-          {
-            "column_name": "league_rank",
-            "description": [
-              "Rank among 32 teams, 1 = best, direction-aware."
-            ],
-            "synonyms": [
-              "rank"
-            ]
-          },
-          {
-            "column_name": "metric",
-            "description": [
-              "Metric name, e.g. 'Pressure rate (hits + sacks)'."
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          },
-          {
-            "column_name": "phase",
-            "description": [
-              "Sub-area within a unit, e.g. 'Pass rush', 'Situational D', 'Pass protection'."
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          },
-          {
-            "column_name": "season",
-            "description": [
-              "NFL season, labelled by the year it starts."
-            ],
-            "synonyms": [
-              "year"
-            ]
-          },
-          {
-            "column_name": "team",
-            "description": [
-              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
-            ],
-            "synonyms": [
-              "club",
-              "franchise"
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          },
-          {
-            "column_name": "tier",
-            "description": [
-              "top tier / above average / below average / bottom tier / tendency."
-            ],
-            "enable_format_assistance": true,
-            "enable_entity_matching": true
-          },
-          {
-            "column_name": "unit",
-            "description": [
-              "Offense, Defense, Special teams, Discipline or Overall. Filter on unit for 'our offense' / 'our defense' questions."
-            ],
-            "synonyms": [
-              "side of the ball"
             ],
             "enable_format_assistance": true,
             "enable_entity_matching": true
@@ -296,6 +174,128 @@
             ]
           }
         ]
+      },
+      {
+        "identifier": "workspace.nfl_gm.gold_data_freshness",
+        "description": [
+          "How current each source is."
+        ]
+      },
+      {
+        "identifier": "workspace.nfl_gm.gold_team_phase_stats",
+        "description": [
+          "Wide per-team, per-season, per-side (offense / defense) efficiency stats behind the report card, incl. red-zone trips."
+        ],
+        "column_configs": [
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "side",
+            "description": [
+              "'offense' = plays the team ran, 'defense' = plays it faced."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "workspace.nfl_gm.gold_team_report_card",
+        "description": [
+          "One row per team per season per metric with league rank, percentile and tier. The first place to look for strengths and weaknesses."
+        ],
+        "column_configs": [
+          {
+            "column_name": "better",
+            "description": [
+              "'higher', 'lower' (lower is better) or 'neutral' (a tendency, not a grade)."
+            ]
+          },
+          {
+            "column_name": "league_rank",
+            "description": [
+              "Rank among 32 teams, 1 = best, direction-aware."
+            ],
+            "synonyms": [
+              "rank"
+            ]
+          },
+          {
+            "column_name": "metric",
+            "description": [
+              "Metric name, e.g. 'Pressure rate (hits + sacks)'."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "phase",
+            "description": [
+              "Sub-area within a unit, e.g. 'Pass rush', 'Situational D', 'Pass protection'."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "season",
+            "description": [
+              "NFL season, labelled by the year it starts."
+            ],
+            "synonyms": [
+              "year"
+            ]
+          },
+          {
+            "column_name": "team",
+            "description": [
+              "Franchise code, current code for every season (LA = Rams incl. St. Louis, LAC = Chargers incl. San Diego, LV = Raiders incl. Oakland)."
+            ],
+            "synonyms": [
+              "club",
+              "franchise"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "tier",
+            "description": [
+              "top tier / above average / below average / bottom tier / tendency."
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "unit",
+            "description": [
+              "Offense, Defense, Special teams, Discipline or Overall. Filter on unit for 'our offense' / 'our defense' questions."
+            ],
+            "synonyms": [
+              "side of the ball"
+            ],
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
       }
     ]
   },
@@ -334,7 +334,7 @@
           "What are our three biggest weaknesses this season?"
         ],
         "sql": [
-          "SELECT gold_team_report_card.phase, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, ROUND(gold_team_report_card.league_avg, 3) AS league_avg, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card)\n  AND gold_team_report_card.team = 'NYG' AND gold_team_report_card.better <> 'neutral'\nORDER BY gold_team_report_card.league_rank DESC, gold_team_report_card.percentile ASC\nLIMIT 3"
+          "SELECT gold_team_report_card.phase, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, ROUND(gold_team_report_card.league_avg, 3) AS league_avg, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl_gm.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_report_card)\n  AND gold_team_report_card.team = 'NYG' AND gold_team_report_card.better <> 'neutral'\nORDER BY gold_team_report_card.league_rank DESC, gold_team_report_card.percentile ASC\nLIMIT 3"
         ]
       },
       {
@@ -343,7 +343,7 @@
           "How has our pass rush changed from last season to this season?"
         ],
         "sql": [
-          "SELECT gold_team_report_card.season, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl.gold_team_report_card\nWHERE gold_team_report_card.team = 'NYG' AND gold_team_report_card.phase = 'Pass rush'\n  AND gold_team_report_card.season >= (SELECT MAX(season) - 1 FROM workspace.nfl.gold_team_report_card)\nORDER BY gold_team_report_card.metric, gold_team_report_card.season"
+          "SELECT gold_team_report_card.season, gold_team_report_card.metric, ROUND(gold_team_report_card.value, 3) AS value, gold_team_report_card.league_rank, gold_team_report_card.tier\nFROM workspace.nfl_gm.gold_team_report_card\nWHERE gold_team_report_card.team = 'NYG' AND gold_team_report_card.phase = 'Pass rush'\n  AND gold_team_report_card.season >= (SELECT MAX(season) - 1 FROM workspace.nfl_gm.gold_team_report_card)\nORDER BY gold_team_report_card.metric, gold_team_report_card.season"
         ]
       },
       {
@@ -361,7 +361,7 @@
           "How do we do in the red zone on offense and defense?"
         ],
         "sql": [
-          "SELECT gold_team_phase_stats.side, gold_team_phase_stats.red_zone_trips, ROUND(100 * gold_team_phase_stats.red_zone_td_rate, 1) AS red_zone_td_pct\nFROM workspace.nfl.gold_team_phase_stats\nWHERE gold_team_phase_stats.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_phase_stats) AND gold_team_phase_stats.team = 'NYG'"
+          "SELECT gold_team_phase_stats.side, gold_team_phase_stats.red_zone_trips, ROUND(100 * gold_team_phase_stats.red_zone_td_rate, 1) AS red_zone_td_pct\nFROM workspace.nfl_gm.gold_team_phase_stats\nWHERE gold_team_phase_stats.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_phase_stats) AND gold_team_phase_stats.team = 'NYG'"
         ]
       },
       {
@@ -370,7 +370,7 @@
           "Which teams are best on third down this season?"
         ],
         "sql": [
-          "SELECT gold_team_report_card.team, ROUND(100 * gold_team_report_card.value, 1) AS third_down_pct, gold_team_report_card.league_rank\nFROM workspace.nfl.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_report_card)\n  AND gold_team_report_card.metric = '3rd down conversion rate'\nORDER BY gold_team_report_card.league_rank\nLIMIT 10"
+          "SELECT gold_team_report_card.team, ROUND(100 * gold_team_report_card.value, 1) AS third_down_pct, gold_team_report_card.league_rank\nFROM workspace.nfl_gm.gold_team_report_card\nWHERE gold_team_report_card.season = (SELECT MAX(season) FROM workspace.nfl_gm.gold_team_report_card)\n  AND gold_team_report_card.metric = '3rd down conversion rate'\nORDER BY gold_team_report_card.league_rank\nLIMIT 10"
         ]
       }
     ]

@@ -67,6 +67,7 @@ DATASETS = {
 
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 spark.sql(f"CREATE VOLUME IF NOT EXISTS {CATALOG}.{SCHEMA}.landing")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.nfl_gm")  # GM marts (see nfl_gold_gm.sql)
 
 # COMMAND ----------
 

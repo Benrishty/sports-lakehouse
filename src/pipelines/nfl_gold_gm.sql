@@ -1,4 +1,6 @@
--- GM marts: the front-office layer on top of the core gold tables.
+-- GM marts: the front-office layer on top of the core gold tables, published to their own schema (nfl_gm).
+-- Free Edition allows 100 tables per schema and every pipeline table also has a hidden backing table, so
+-- the GM layer lives apart from bronze/silver/core gold in `nfl`. Bare names below resolve to `nfl`.
 -- Questions they answer: where is my team weak (report card), who is worth their contract (player value),
 -- how is my cap spread (cap allocation), how well do we draft (draft value, grades, projected order),
 -- what is the injury picture (injury report, starter games lost), and how do players grade on tracking and
@@ -6,7 +8,7 @@
 -- Conventions: regular season only unless stated; team = franchise code; snap shares are 0-1.
 
 -- ---------------------------------------------------------------- team phase stats (team × season × side)
-CREATE OR REFRESH MATERIALIZED VIEW gold_team_phase_stats
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_team_phase_stats
 COMMENT "One row per team per regular season per side (offense = plays run, defense = plays faced): EPA by pass/rush, success, explosives, sack and pressure (hits + sacks) rate, 3rd down, red zone TD rate, turnovers, early-down pass rate over expected, and from 2022 FTN play-action and blitz rates."
 AS
 WITH p AS (
@@ -59,11 +61,11 @@ FROM plays pl
 LEFT JOIN red_zone rz ON rz.season = pl.season AND rz.team = pl.team AND rz.side = pl.side;
 
 -- ---------------------------------------------------------------- team report card (long)
-CREATE OR REFRESH MATERIALIZED VIEW gold_team_report_card
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_team_report_card
 COMMENT "One row per team per regular season per metric: unit (Offense / Defense / Special teams / Discipline / Overall), phase, value, league rank (1 = best), percentile, league average and tier (1-8 top, 9-16 above average, 17-24 below average, 25-32 bottom). Direction-aware: for 'lower is better' metrics rank 1 is the lowest value. Neutral tendency metrics (pass rate over expected, play-action rate, blitz rate) are ranked high-to-low with tier 'tendency'."
 AS
-WITH o AS (SELECT * FROM gold_team_phase_stats WHERE side = 'offense'),
-d AS (SELECT * FROM gold_team_phase_stats WHERE side = 'defense'),
+WITH o AS (SELECT * FROM ${catalog}.nfl_gm.gold_team_phase_stats WHERE side = 'offense'),
+d AS (SELECT * FROM ${catalog}.nfl_gm.gold_team_phase_stats WHERE side = 'defense'),
 kicking AS (
   SELECT season, posteam AS team,
          AVG(CASE WHEN field_goal_result = 'made' THEN 1.0 WHEN field_goal_result IN ('missed', 'blocked') THEN 0.0 END) AS fg_pct
@@ -144,7 +146,7 @@ FROM long
 WHERE value IS NOT NULL;
 
 -- ---------------------------------------------------------------- player snaps (player × season × team)
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_snaps_season
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_snaps_season
 COMMENT "One row per player per regular season per team, 2013+: games, snaps and average snap share by phase, and a role (starter >= 60% of the team's snaps on his side of the ball in games played, rotation 25-60%, reserve < 25%). player_id is the gsis id via the PFR crosswalk."
 AS
 SELECT
@@ -163,7 +165,7 @@ WHERE s.game_type = 'REG'
 GROUP BY s.season, s.team, s.pfr_player_id, pl.player_id, pl.player_name, pl.headshot_url;
 
 -- ---------------------------------------------------------------- defensive credit from play-by-play
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_defense_pbp
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_defense_pbp
 COMMENT "Defensive credit per player per regular season from play-by-play (complete and current every week, unlike PFR advanced which lags in-season): sacks (half sacks = 0.5), QB hits, passes defensed, interceptions."
 AS
 WITH credit AS (
@@ -183,13 +185,13 @@ FROM credit
 GROUP BY season, player_id;
 
 -- ---------------------------------------------------------------- player advanced (player × season)
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_advanced
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_advanced
 COMMENT "One row per player per regular season: box score and EPA (all seasons) plus snap share (2012+), Next Gen Stats (2016+: time to throw, aggressiveness (%), CPOE (pct points), rush yards over expected, stacked-box rate (0-1), separation, YAC over expected, air-yards share (0-1)) and PFR advanced (2018+: pressure rate faced, bad throws, yards after contact, broken tackles, drops, pressures generated, missed tackles, coverage allowed)."
 AS
 WITH snaps AS (
   SELECT season, player_id, SUM(games) AS snap_games, SUM(offense_snaps) AS offense_snaps, SUM(defense_snaps) AS defense_snaps,
          MAX(avg_snap_share) AS snap_share, MAX_BY(role, games) AS role
-  FROM gold_player_snaps_season WHERE player_id IS NOT NULL GROUP BY season, player_id
+  FROM ${catalog}.nfl_gm.gold_player_snaps_season WHERE player_id IS NOT NULL GROUP BY season, player_id
 ),
 ngs_pass AS (SELECT * FROM silver_ngs_passing WHERE week = 0 AND season_type = 'REG'),
 ngs_rush AS (SELECT * FROM silver_ngs_rushing WHERE week = 0 AND season_type = 'REG'),
@@ -232,10 +234,10 @@ LEFT JOIN pfr_pass pp ON pp.season = g.season AND pp.pfr_player_id = pl.pfr_id
 LEFT JOIN pfr_rush pr ON pr.season = g.season AND pr.pfr_player_id = pl.pfr_id
 LEFT JOIN pfr_rec pc ON pc.season = g.season AND pc.pfr_player_id = pl.pfr_id
 LEFT JOIN pfr_def pd ON pd.season = g.season AND pd.pfr_player_id = pl.pfr_id
-LEFT JOIN gold_player_defense_pbp dp ON dp.season = g.season AND dp.player_id = g.player_id;
+LEFT JOIN ${catalog}.nfl_gm.gold_player_defense_pbp dp ON dp.season = g.season AND dp.player_id = g.player_id;
 
 -- ---------------------------------------------------------------- availability (player × week, 2013+)
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_availability_week
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_availability_week
 COMMENT "One row per player per regular-season game week of his team, 2013+: did he play (any snaps), his roster status (active, inactive, injured reserve, PUP, NFI) and injury report status, and whether the week was missed through injury (did not play AND on IR/PUP/NFI or listed Out/Doubtful). The weekly injury report omits players on IR, so roster status is required to count serious injuries."
 AS
 WITH played_weeks AS (  -- only weeks the team actually played: roster files can run ahead of the schedule
@@ -264,7 +266,7 @@ LEFT JOIN snaps s ON s.season = r.season AND s.week = r.week AND s.team = r.team
 LEFT JOIN report rp ON rp.season = r.season AND rp.week = r.week AND rp.team = r.team AND rp.player_id = r.player_id;
 
 -- ---------------------------------------------------------------- availability (player × season)
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_availability
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_availability
 COMMENT "One row per player per regular season, 2013+: team games on his roster, games played, games missed through injury (IR / PUP / NFI or listed Out/Doubtful and did not play), other games missed (healthy scratch or coach's decision), last week played, and current status (latest roster status and latest injury)."
 AS
 SELECT season, player_id,
@@ -277,11 +279,11 @@ SELECT season, player_id,
   MAX_BY(availability, week) AS current_roster_status,
   MAX_BY(injury, IF(injury IS NOT NULL, week, NULL)) AS latest_injury,
   SUM(IF(played, 1, 0)) / COUNT(*) AS availability_rate
-FROM gold_player_availability_week
+FROM ${catalog}.nfl_gm.gold_player_availability_week
 GROUP BY season, player_id;
 
 -- ---------------------------------------------------------------- player value (active contracts)
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_value
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_value
 COMMENT "One row per player on an active contract. Two separate judgments: performance_tier (how good: production percentile within the position group, elite / very good / average / below average) and contract_verdict (value for money: value_score = production percentile minus cost (APY) percentile, bargain >= +0.25, overpaid <= -0.25, otherwise fair). Production is a rate so missed games do not count against a player: QB EPA per dropback, RB rush+receiving EPA per game played, WR/TE receiving EPA per game played, EDGE/IDL sacks + QB hits per 100 defensive snaps, LB tackles per 100 snaps, CB/S passes defensed + interceptions per 100 snaps. Minimum sample: 4+ games and 25%+ snap share (QBs 100+ dropbacks) this season, otherwise last season is used (production_basis says which) and otherwise the player is not scored. OL and specialists are not scored (no individual blocking data). Availability (games played, missed through injury, current IR status) comes from weekly roster status."
 AS
 WITH cur AS (SELECT MAX(season) AS season FROM silver_plays),
@@ -315,7 +317,7 @@ perf AS (
     CASE WHEN c.position_group = 'QB' THEN q.dropbacks >= 100
          ELSE a.games >= 4 AND a.snap_share >= 0.25 END AS qualifies
   FROM c CROSS JOIN cur
-  JOIN gold_player_advanced a ON a.player_id = c.player_id AND a.season IN (cur.season, cur.season - 1)
+  JOIN ${catalog}.nfl_gm.gold_player_advanced a ON a.player_id = c.player_id AND a.season IN (cur.season, cur.season - 1)
   LEFT JOIN gold_qb_season q ON q.season = a.season AND q.player_id = c.player_id
   WHERE c.position_group NOT IN ('OL', 'ST')
 ),
@@ -347,8 +349,8 @@ base AS (
          ELSE 'not scored (too small a sample this season and last)' END AS production_basis
   FROM c CROSS JOIN cur
   LEFT JOIN silver_players pl ON pl.player_id = c.player_id
-  LEFT JOIN gold_player_advanced a ON a.season = cur.season AND a.player_id = c.player_id
-  LEFT JOIN gold_player_availability av ON av.season = cur.season AND av.player_id = c.player_id
+  LEFT JOIN ${catalog}.nfl_gm.gold_player_advanced a ON a.season = cur.season AND a.player_id = c.player_id
+  LEFT JOIN ${catalog}.nfl_gm.gold_player_availability av ON av.season = cur.season AND av.player_id = c.player_id
   LEFT JOIN chosen ch ON ch.player_id = c.player_id AND ch.pick = 1
 ),
 priced AS (
@@ -372,10 +374,10 @@ FROM base b
 LEFT JOIN priced p ON p.player_id = b.player_id;
 
 -- ---------------------------------------------------------------- cap allocation (team × position group)
-CREATE OR REFRESH MATERIALIZED VIEW gold_cap_allocation
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_cap_allocation
 COMMENT "Active-contract spending (APY, $M) by team and position group: the group's share of the team's total APY, the league-average share, and the average share among the 8 best teams by current net EPA. APY is average annual value, not the exact current-year cap hit."
 AS
-WITH v AS (SELECT team, position_group, apy_m, player_id FROM gold_player_value WHERE team IS NOT NULL),
+WITH v AS (SELECT team, position_group, apy_m, player_id FROM ${catalog}.nfl_gm.gold_player_value WHERE team IS NOT NULL),
 team_total AS (SELECT team, SUM(apy_m) AS team_apy_m FROM v GROUP BY team),
 grp AS (
   SELECT v.team, v.position_group, COUNT(*) AS players, SUM(v.apy_m) AS apy_m, SUM(v.apy_m) / t.team_apy_m AS share_of_team_apy
@@ -394,7 +396,7 @@ JOIN team_total t ON t.team = g.team
 LEFT JOIN top8 t8 ON t8.team = g.team;
 
 -- ---------------------------------------------------------------- draft pick value (pick level, 2000+)
-CREATE OR REFRESH MATERIALIZED VIEW gold_draft_pick_value
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_draft_pick_value
 COMMENT "Every draft pick since 2000 vs. the value expected at its slot. expected_dr_av = average AV-for-drafting-team of picks within 4 slots in MATURE classes (drafted 5+ seasons ago), surplus_av = dr_av - expected_dr_av, meaningful only when is_mature. hit = 3+ seasons as a starter."
 AS
 WITH cur AS (SELECT MAX(draft_year) AS last_class FROM silver_draft_picks),
@@ -415,30 +417,30 @@ LEFT JOIN expected e ON e.pick = d.pick
 LEFT JOIN silver_players pl ON pl.player_id = d.player_id;
 
 -- ---------------------------------------------------------------- team draft grades (team × class)
-CREATE OR REFRESH MATERIALIZED VIEW gold_draft_team_grades
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_draft_team_grades
 COMMENT "Draft results per team per class (mature classes only, 5+ seasons old): picks, hits, Pro Bowlers, AV earned for the team vs. expected for the slots used, surplus, and rank among all teams for that class."
 AS
 SELECT draft_year, team,
   COUNT(*) AS picks, SUM(IF(hit, 1, 0)) AS hits, SUM(IF(probowls > 0, 1, 0)) AS pro_bowlers,
   SUM(dr_av) AS av_for_team, SUM(expected_dr_av) AS expected_av, SUM(surplus_av) AS surplus_av,
   RANK() OVER (PARTITION BY draft_year ORDER BY SUM(surplus_av) DESC) AS class_rank
-FROM gold_draft_pick_value
+FROM ${catalog}.nfl_gm.gold_draft_pick_value
 WHERE is_mature
 GROUP BY draft_year, team;
 
 -- ---------------------------------------------------------------- position value by round
-CREATE OR REFRESH MATERIALIZED VIEW gold_draft_position_value
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_draft_position_value
 COMMENT "Which positions pay off by round (mature classes since 2000): picks, hit rate (3+ seasons as a starter), Pro Bowl rate and average AV for the drafting team, per position and round."
 AS
 SELECT round, position, COUNT(*) AS picks,
   AVG(IF(hit, 1.0, 0.0)) AS hit_rate, AVG(IF(probowls > 0, 1.0, 0.0)) AS pro_bowl_rate,
   AVG(dr_av) AS avg_av_for_team, AVG(surplus_av) AS avg_surplus_av
-FROM gold_draft_pick_value
+FROM ${catalog}.nfl_gm.gold_draft_pick_value
 WHERE is_mature
 GROUP BY round, position;
 
 -- ---------------------------------------------------------------- projected draft order
-CREATE OR REFRESH MATERIALIZED VIEW gold_draft_order_projection
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_draft_order_projection
 COMMENT "Projected first-round order for next spring's draft if the season ended today: teams outside playoff position pick 1-18 by worst win percentage (then point differential), playoff-position teams pick 19-32 in the same order. Ignores playoff results, strength-of-schedule tiebreaks and traded picks."
 AS
 SELECT season + 1 AS draft_year, team, team_name, wins, losses, ties, win_pct, point_differential, in_playoff_position,
@@ -447,7 +449,7 @@ FROM gold_standings
 WHERE season = (SELECT MAX(season) FROM gold_standings);
 
 -- ---------------------------------------------------------------- injury report (latest week)
-CREATE OR REFRESH MATERIALIZED VIEW gold_injury_report
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_injury_report
 COMMENT "Who is hurt right now: for each team, its latest roster week of the current season (whether or not that game has been played yet), combining players on injured reserve / PUP / NFI (from weekly roster status, which the official report omits) with the official injury report (Out / Doubtful / Questionable / practice listings). Includes the player's role (this season, or last season if he has barely played), games played and missed through injury, and contract APY."
 AS
 WITH cur AS (SELECT MAX(season) AS season FROM silver_roster_week WHERE game_type = 'REG'),
@@ -465,7 +467,7 @@ report AS (
 ),
 role AS (
   SELECT player_id, MAX_BY(role, season) AS role, MAX_BY(snap_share, season) AS snap_share
-  FROM gold_player_advanced
+  FROM ${catalog}.nfl_gm.gold_player_advanced
   WHERE season >= (SELECT season FROM cur) - 1 AND role IS NOT NULL AND games >= 3
   GROUP BY player_id
 )
@@ -477,22 +479,22 @@ SELECT r.season, r.week, r.team, r.player_id, COALESCE(pl.player_name, r.player_
 FROM roster r
 LEFT JOIN report rp ON rp.team = r.team AND rp.player_id = r.player_id
 LEFT JOIN silver_players pl ON pl.player_id = r.player_id
-LEFT JOIN gold_player_availability av ON av.season = r.season AND av.player_id = r.player_id
+LEFT JOIN ${catalog}.nfl_gm.gold_player_availability av ON av.season = r.season AND av.player_id = r.player_id
 LEFT JOIN role ro ON ro.player_id = r.player_id
-LEFT JOIN gold_player_value v ON v.player_id = r.player_id
+LEFT JOIN ${catalog}.nfl_gm.gold_player_value v ON v.player_id = r.player_id
 WHERE r.availability IN ('injured reserve', 'PUP', 'NFI') OR rp.report_status IS NOT NULL OR rp.report_primary_injury IS NOT NULL;
 
 -- ---------------------------------------------------------------- starter games lost (team × season)
-CREATE OR REFRESH MATERIALIZED VIEW gold_team_injury_impact
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_team_injury_impact
 COMMENT "Games lost to injury per team per regular season (2013+): player-games and starter-games missed through injury (did not play while on IR / PUP / NFI or listed Out/Doubtful). A starter is a player with 60%+ snap share when playing that season, or last season if he barely played this one. Includes the contract APY of currently injured starters and a league rank (1 = fewest starter games lost)."
 AS
 WITH role AS (
-  SELECT season, player_id, role FROM gold_player_advanced WHERE role IS NOT NULL AND games >= 3
+  SELECT season, player_id, role FROM ${catalog}.nfl_gm.gold_player_advanced WHERE role IS NOT NULL AND games >= 3
 ),
 w AS (
   SELECT w.season, w.team, w.player_id, w.missed_injured,
     COALESCE(r.role, rp.role) AS role
-  FROM gold_player_availability_week w
+  FROM ${catalog}.nfl_gm.gold_player_availability_week w
   LEFT JOIN role r ON r.season = w.season AND r.player_id = w.player_id
   LEFT JOIN role rp ON rp.season = w.season - 1 AND rp.player_id = w.player_id
 )
@@ -505,7 +507,7 @@ FROM w
 GROUP BY w.season, w.team;
 
 -- ---------------------------------------------------------------- data freshness
-CREATE OR REFRESH MATERIALIZED VIEW gold_data_freshness
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_data_freshness
 COMMENT "How current each source is: latest season and week (or games played) available. PFR advanced stats are season files that can lag weeks behind during the season. Use this to state what an answer is 'as of'."
 AS
 SELECT 'Play-by-play (EPA, situational, defensive credit)' AS source, MAX(season) AS latest_season,
@@ -520,14 +522,14 @@ UNION ALL SELECT 'Contracts (latest signing year)', MAX(year_signed), NULL, 'ref
 UNION ALL SELECT 'Draft picks (latest class)', MAX(draft_year), NULL, 'after each draft' FROM silver_draft_picks;
 
 -- ---------------------------------------------------------------- player profile (one row per recent player)
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_profile
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_profile
 COMMENT "One row per player who has played in the last three seasons: unique picker label 'Name (POS, TEAM)', bio (age, height, weight, college, experience), draft slot, current contract and value judgment (performance tier, contract verdict, basis), current-season availability and roster status. The drill-down header for the Player Profile page."
 AS
-WITH cur AS (SELECT MAX(season) AS season FROM gold_player_advanced),
+WITH cur AS (SELECT MAX(season) AS season FROM ${catalog}.nfl_gm.gold_player_advanced),
 recent AS (
   SELECT a.player_id, MAX(a.season) AS last_season, MAX_BY(a.latest_team, a.season) AS team,
          MAX_BY(a.position, a.season) AS position, MAX_BY(a.position_group, a.season) AS position_group
-  FROM gold_player_advanced a CROSS JOIN cur
+  FROM ${catalog}.nfl_gm.gold_player_advanced a CROSS JOIN cur
   WHERE a.season >= cur.season - 2 AND a.player_id IS NOT NULL
   GROUP BY a.player_id
 ),
@@ -551,11 +553,11 @@ SELECT
   av.games_played, av.team_games_on_roster, av.games_missed_injured, av.current_roster_status, av.latest_injury
 FROM labeled l CROSS JOIN cur
 JOIN silver_players pl ON pl.player_id = l.player_id
-LEFT JOIN gold_player_value v ON v.player_id = l.player_id
-LEFT JOIN gold_player_availability av ON av.season = cur.season AND av.player_id = l.player_id;
+LEFT JOIN ${catalog}.nfl_gm.gold_player_value v ON v.player_id = l.player_id
+LEFT JOIN ${catalog}.nfl_gm.gold_player_availability av ON av.season = cur.season AND av.player_id = l.player_id;
 
 -- ---------------------------------------------------------------- player percentiles (player × season × metric)
-CREATE OR REFRESH MATERIALIZED VIEW gold_player_percentiles
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.nfl_gm.gold_player_percentiles
 COMMENT "Position-specific advanced metrics per player per regular season with a direction-aware percentile (100 = best) among QUALIFIED players at the same position group that season (QB: 100+ dropbacks, others: 4+ games and 25%+ snap share, or 6+ games before snap counts exist). QB: EPA/dropback, CPOE, yards/game, TD and INT rate, sack rate, PFR bad throws and pressure faced, NGS time to throw and aggressiveness. RB: rush EPA/carry, yards/carry, NGS RYOE, PFR yards after contact and broken tackles, receiving. WR/TE: EPA/target, yards and targets/game, catch rate, NGS separation, YAC over expected, air-yards share, PFR drops and aDOT. DL/LB: sacks + QB hits and tackles per 100 snaps, sacks, PFR pressures and missed tackles. DB: passes defensed + INT per 100 snaps, INTs, PFR coverage allowed and missed tackles. PFR metrics only count once the season file covers 4+ games. 'neutral' metrics are tendencies (ranked high to low, not graded). fmt tells the display how to format value."
 AS
 WITH base AS (
@@ -564,7 +566,7 @@ WITH base AS (
          WHEN a.snap_share IS NULL THEN a.games >= 6
          ELSE a.games >= 4 AND a.snap_share >= 0.25 END AS qualified,
     COALESCE(a.pfr_games, 0) >= 4 AS pfr_ok
-  FROM gold_player_advanced a
+  FROM ${catalog}.nfl_gm.gold_player_advanced a
   LEFT JOIN gold_qb_season q ON q.season = a.season AND q.player_id = a.player_id
   LEFT JOIN gold_player_season ps ON ps.season = a.season AND ps.player_id = a.player_id
 ),

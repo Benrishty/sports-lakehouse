@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 AGENTS_DIR = ROOT / "genie/agents"
 EXAMPLES = json.loads((AGENTS_DIR / "examples.json").read_text())
 T = "workspace.nfl."
+T_GM = "workspace.nfl_gm."  # GM marts live in their own schema (100-tables-per-schema limit)
+GM_TABLES = set(json.loads((ROOT / "src/pipelines/gm_tables.json").read_text()))
 OUR_TEAM = ("NYG", "New York Giants")  # who "we / our / us" means. Change here to re-point every agent.
 NS = uuid.UUID("7a2e3b4c-0000-4000-8000-000000000000")
 
@@ -36,7 +38,7 @@ def table(name, description, *columns):
             c["enable_format_assistance"] = True
             c["enable_entity_matching"] = True
         cfgs.append(c)
-    out = {"identifier": T + name, "description": [description]}
+    out = {"identifier": (T_GM if name in GM_TABLES else T) + name, "description": [description]}
     if cfgs:
         out["column_configs"] = sorted(cfgs, key=lambda c: c["column_name"])
     return out
