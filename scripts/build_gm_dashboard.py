@@ -141,6 +141,85 @@ LAYOUT = {
 }
 
 
+DEFAULT_PLAYER = "Malik Nabers (WR, NYG)"
+PROFILE_DATASETS = ["pp_header", "pp_percentiles", "pp_career", "pp_gamelog", "pp_injuries", "pp_combine"]
+
+
+def player_filter() -> dict:
+    """Page-level Player picker: binds player_label in every profile dataset (independent of the Team filter)."""
+    queries = [{"name": f"player_{ds}", "query": {"datasetName": ds, "disaggregated": False,
+                                                   "fields": [{"name": "player_label", "expression": "`player_label`"}]}}
+               for ds in PROFILE_DATASETS]
+    return {"name": "player_picker", "queries": queries, "spec": {
+        "version": 2, "widgetType": "filter-single-select",
+        "encodings": {"fields": [{"fieldName": "player_label", "displayName": "Player", "queryName": q["name"]} for q in queries]},
+        "selection": {"defaultSelection": {"values": {"dataType": "STRING", "values": [{"value": DEFAULT_PLAYER}]}}},
+        "frame": {"showTitle": True, "title": "Player (type to search any player, any team)"}}}
+
+
+def line(name, ds, title, x, y, ytitle, xtitle):
+    agg = f"sum({y})"
+    return {"name": name,
+            "queries": [{"name": "main_query", "query": {"datasetName": ds, "disaggregated": False,
+                                                          "fields": [{"name": x, "expression": f"`{x}`"},
+                                                                     {"name": agg, "expression": f"SUM(`{y}`)"}]}}],
+            "spec": {"version": 3, "widgetType": "line", "encodings": {
+                "x": {"fieldName": x, "scale": {"type": "quantitative"}, "displayName": xtitle, "axis": {"title": xtitle}},
+                "y": {"fieldName": agg, "scale": {"type": "quantitative"}, "displayName": ytitle, "axis": {"title": ytitle}},
+                "label": {"show": True}}, "frame": {"showTitle": True, "title": title}}}
+
+
+LAYOUT["player"] = ("Player Profile", [
+    (text("pp_head", "## Player Profile\nPick any player in the league. Percentiles compare him with qualified players at his "
+                     "position in his latest qualifying season (100 = best, direction-aware). PFR metrics appear once the "
+                     "season file covers 4+ games. ⚪ style metrics describe how he plays and are not graded."), (0, 0, 12, 2)),
+    (player_filter(), (0, 2, 6, 2)),
+    (table("pp_header_table", "pp_header", "Snapshot", [
+        col("headshot_url", "", **IMG, width=64), col("player_name", "Player"), col("position", "Pos"), col("club", "Team"),
+        col("age", "Age", "integer", "0"), col("height", "Ht"), col("weight_lb", "Wt", "integer", "0"), col("college", "College"),
+        col("draft", "Draft"), col("years_of_experience", "Exp", "integer", "0"),
+        col("apy_m", "APY $M", "float", "0.0"), col("final_season", "Thru", "integer", "0"),
+        col("how_good", "How good"), col("contract", "Contract"), col("judged_on", "Judged on"),
+        col("games_this_season", "Games"), col("status", "Status"), col("latest_injury", "Last injury")]), (0, 4, 12, 3)),
+    (bar("pp_pct_bar", "pp_percentiles", "Percentile vs. his position (100 = best)", "metric", "percentile", "Percentile",
+         xtitle="Metric", horizontal=True), (0, 7, 6, 10)),
+    (table("pp_pct_table", "pp_percentiles", "Advanced metrics", [
+        col("metric", "Metric"), col("value", "Value"), col("percentile", "Pctl", "integer", "0"), col("grade", "Grade"),
+        col("direction", ""), col("season", "Season", "integer", "0"), col("peers", "Peers", "integer", "0")]), (6, 7, 6, 10)),
+    (table("pp_career_table", "pp_career", "Career by season (regular season)", [
+        col("season", "Season", "integer", "0"), col("club", "Team"), col("games", "G", "integer", "0"),
+        col("snap_pct", "Snap %", "integer", "0"), col("role", "Role"),
+        col("pass_attempts", "Att", "integer", "0"), col("passing_yards", "Pass yds", "integer", "0"),
+        col("passing_tds", "Pass TD", "integer", "0"), col("interceptions", "Int", "integer", "0"),
+        col("carries", "Car", "integer", "0"), col("rushing_yards", "Rush yds", "integer", "0"), col("rushing_tds", "Rush TD", "integer", "0"),
+        col("targets", "Tgt", "integer", "0"), col("receptions", "Rec", "integer", "0"), col("receiving_yards", "Rec yds", "integer", "0"),
+        col("receiving_tds", "Rec TD", "integer", "0"), col("offensive_epa", "Off. EPA", "float", "0.0"),
+        col("tackles", "Tkl", "integer", "0"), col("sacks", "Sk", "float", "0.0"), col("sacks_plus_hits", "Sk+hits", "float", "0.0"),
+        col("passes_defensed", "PD", "integer", "0"), col("def_ints", "Def INT", "integer", "0"),
+        col("fantasy_ppr", "PPR", "float", "0.0")]), (0, 17, 12, 9)),
+    (table("pp_gamelog_table", "pp_gamelog", "This season, game by game", [
+        col("week", "Wk", "integer", "0"), col("opp", "Opp"), col("snap_pct", "Snap %", "integer", "0"),
+        col("completions", "Cmp", "integer", "0"), col("attempts", "Att", "integer", "0"), col("passing_yards", "Pass yds", "integer", "0"),
+        col("passing_tds", "Pass TD", "integer", "0"), col("ints", "Int", "integer", "0"),
+        col("carries", "Car", "integer", "0"), col("rushing_yards", "Rush yds", "integer", "0"), col("rushing_tds", "Rush TD", "integer", "0"),
+        col("targets", "Tgt", "integer", "0"), col("receptions", "Rec", "integer", "0"), col("receiving_yards", "Rec yds", "integer", "0"),
+        col("receiving_tds", "Rec TD", "integer", "0"), col("offensive_epa", "Off. EPA", "float", "0.0"),
+        col("tackles", "Tkl", "integer", "0"), col("sacks", "Sk", "float", "0.0"), col("def_ints", "Def INT", "integer", "0"),
+        col("fantasy_ppr", "PPR", "float", "0.0")]), (0, 26, 12, 9)),
+    (line("pp_epa_line", "pp_gamelog", "Offensive EPA by week", "week", "offensive_epa", "EPA", "Week"), (0, 35, 6, 7)),
+    (line("pp_snap_line", "pp_gamelog", "Snap share by week", "week", "snap_pct", "Snap %", "Week"), (6, 35, 6, 7)),
+    (table("pp_injury_table", "pp_injuries", "Availability history (2013+)", [
+        col("season", "Season", "integer", "0"), col("games_played", "Played", "integer", "0"),
+        col("games_missed_injured", "Missed (injury)", "integer", "0"), col("games_missed_other", "Missed (other)", "integer", "0"),
+        col("season_end_status", "Latest status"), col("injuries_reported", "Injuries reported")]), (0, 42, 7, 7)),
+    (table("pp_combine_table", "pp_combine", "Combine", [
+        col("combine_year", "Year", "integer", "0"), col("height", "Ht"), col("weight_lb", "Wt", "integer", "0"),
+        col("forty", "40", "float", "0.00"), col("bench", "Bench", "integer", "0"), col("vertical", "Vert", "float", "0.0"),
+        col("broad_jump", "Broad", "integer", "0"), col("cone", "3-cone", "float", "0.00"), col("shuttle", "Shuttle", "float", "0.00")]),
+     (7, 42, 5, 7)),
+])
+
+
 def build() -> dict:
     ds = datasets()
     ds_names = {d["name"] for d in ds}

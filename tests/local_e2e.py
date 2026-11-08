@@ -211,4 +211,17 @@ assert burns.games_missed_injured == nyg_games - 3, burns.games_missed_injured  
 assert spark.sql("select count(*) c from gold_player_value where position_group = 'OL' and value_score is not null").first().c == 0
 ir = spark.sql("select status from gold_injury_report where player_name = 'Brian Burns'").first()
 assert ir is not None and ir.status == "injured reserve", ir                                   # IR players are listed
+# ---- player drill-down
+labels = spark.sql("select count(*) n, count(distinct player_label) u from gold_player_profile").first()
+assert labels.n == labels.u and labels.n > 1500, labels                                   # picker labels are unique
+nab = spark.sql("select * from gold_player_profile where player_name = 'Malik Nabers'").first()
+assert nab.player_label == "Malik Nabers (WR, NYG)" and nab.headshot_url and nab.draft.startswith("2024 round 1"), nab
+pct = {r.metric: r for r in spark.sql("""select p.* from gold_player_percentiles p join gold_player_profile f using (player_id)
+                                          where f.player_name = 'Malik Nabers' and p.season = 2026""").collect()}
+assert {"Receiving EPA per target", "Separation, yds (NGS)", "Catch rate"} <= set(pct), sorted(pct)
+assert all(0 <= r.percentile <= 1 for r in pct.values() if r.percentile is not None)
+assert "Sacks" not in pct                                                                  # only WR metrics for a WR
+qbp = spark.sql("""select percentile from gold_player_percentiles where season = 2025 and metric = 'INT rate' and qualified
+                   order by value asc limit 1""").first()
+assert qbp.percentile == 1.0, qbp                                                          # 'lower is better' ranks the lowest first
 print("ALL CHECKS PASSED")

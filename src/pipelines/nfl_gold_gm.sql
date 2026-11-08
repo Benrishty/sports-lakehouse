@@ -518,3 +518,113 @@ UNION ALL SELECT 'Next Gen Stats', MAX(season), MAX(IF(season = (SELECT MAX(seas
 UNION ALL SELECT 'PFR advanced (games played in latest file)', MAX(season), MAX(IF(season = (SELECT MAX(season) FROM silver_pfr_defense), games, NULL)), 'season file, lags in-season' FROM silver_pfr_defense
 UNION ALL SELECT 'Contracts (latest signing year)', MAX(year_signed), NULL, 'refreshed with OverTheCap' FROM silver_contracts
 UNION ALL SELECT 'Draft picks (latest class)', MAX(draft_year), NULL, 'after each draft' FROM silver_draft_picks;
+
+-- ---------------------------------------------------------------- player profile (one row per recent player)
+CREATE OR REFRESH MATERIALIZED VIEW gold_player_profile
+COMMENT "One row per player who has played in the last three seasons: unique picker label 'Name (POS, TEAM)', bio (age, height, weight, college, experience), draft slot, current contract and value judgment (performance tier, contract verdict, basis), current-season availability and roster status. The drill-down header for the Player Profile page."
+AS
+WITH cur AS (SELECT MAX(season) AS season FROM gold_player_advanced),
+recent AS (
+  SELECT a.player_id, MAX(a.season) AS last_season, MAX_BY(a.latest_team, a.season) AS team,
+         MAX_BY(a.position, a.season) AS position, MAX_BY(a.position_group, a.season) AS position_group
+  FROM gold_player_advanced a CROSS JOIN cur
+  WHERE a.season >= cur.season - 2 AND a.player_id IS NOT NULL
+  GROUP BY a.player_id
+),
+labeled AS (
+  SELECT r.*, pl.player_name,
+         CONCAT(pl.player_name, ' (', COALESCE(r.position, '?'), ', ', COALESCE(r.team, '?'), ')') AS base_label
+  FROM recent r JOIN silver_players pl ON pl.player_id = r.player_id
+)
+SELECT
+  -- a label is unique unless two players share name, position and team, then the id suffix disambiguates
+  IF(COUNT(*) OVER (PARTITION BY l.base_label) > 1, CONCAT(l.base_label, ' #', RIGHT(l.player_id, 4)), l.base_label) AS player_label,
+  l.player_id, l.player_name, l.position, l.position_group, l.team AS club, l.last_season,
+  pl.headshot_url, pl.jersey_number,
+  FLOOR(DATEDIFF(make_date(cur.season, 9, 1), pl.birth_date) / 365.25) AS age,
+  CONCAT(CAST(FLOOR(pl.height_in / 12) AS STRING), "'", CAST(pl.height_in % 12 AS STRING), '"') AS height,
+  pl.weight_lb, pl.college, pl.years_of_experience, pl.rookie_season,
+  CASE WHEN pl.draft_round IS NULL THEN 'Undrafted'
+       ELSE CONCAT(pl.draft_year, ' round ', pl.draft_round, ', pick ', pl.draft_pick) END AS draft,
+  v.apy_m, v.guaranteed_m, v.final_season, v.performance_tier, v.contract_verdict, v.value_score,
+  v.production_metric_name, v.production_metric, v.production_basis,
+  av.games_played, av.team_games_on_roster, av.games_missed_injured, av.current_roster_status, av.latest_injury
+FROM labeled l CROSS JOIN cur
+JOIN silver_players pl ON pl.player_id = l.player_id
+LEFT JOIN gold_player_value v ON v.player_id = l.player_id
+LEFT JOIN gold_player_availability av ON av.season = cur.season AND av.player_id = l.player_id;
+
+-- ---------------------------------------------------------------- player percentiles (player × season × metric)
+CREATE OR REFRESH MATERIALIZED VIEW gold_player_percentiles
+COMMENT "Position-specific advanced metrics per player per regular season with a direction-aware percentile (100 = best) among QUALIFIED players at the same position group that season (QB: 100+ dropbacks, others: 4+ games and 25%+ snap share, or 6+ games before snap counts exist). QB: EPA/dropback, CPOE, yards/game, TD and INT rate, sack rate, PFR bad throws and pressure faced, NGS time to throw and aggressiveness. RB: rush EPA/carry, yards/carry, NGS RYOE, PFR yards after contact and broken tackles, receiving. WR/TE: EPA/target, yards and targets/game, catch rate, NGS separation, YAC over expected, air-yards share, PFR drops and aDOT. DL/LB: sacks + QB hits and tackles per 100 snaps, sacks, PFR pressures and missed tackles. DB: passes defensed + INT per 100 snaps, INTs, PFR coverage allowed and missed tackles. PFR metrics only count once the season file covers 4+ games. 'neutral' metrics are tendencies (ranked high to low, not graded). fmt tells the display how to format value."
+AS
+WITH base AS (
+  SELECT a.*, q.epa_per_dropback, q.dropbacks, q.cpoe AS qb_cpoe, ps.sacks_taken,
+    CASE WHEN a.position_group = 'QB' THEN COALESCE(q.dropbacks, 0) >= 100
+         WHEN a.snap_share IS NULL THEN a.games >= 6
+         ELSE a.games >= 4 AND a.snap_share >= 0.25 END AS qualified,
+    COALESCE(a.pfr_games, 0) >= 4 AS pfr_ok
+  FROM gold_player_advanced a
+  LEFT JOIN gold_qb_season q ON q.season = a.season AND q.player_id = a.player_id
+  LEFT JOIN gold_player_season ps ON ps.season = a.season AND ps.player_id = a.player_id
+),
+long AS (
+  SELECT season, player_id, position_group, qualified,
+    stack(36,
+      'QB', 1, 'EPA per dropback', CAST(epa_per_dropback AS DOUBLE), 'higher', 'dec3',
+      'QB', 2, 'CPOE (pct pts)', CAST(qb_cpoe AS DOUBLE), 'higher', 'dec1',
+      'QB', 3, 'Passing yards per game', CAST(passing_yards / NULLIF(games, 0) AS DOUBLE), 'higher', 'dec1',
+      'QB', 4, 'TD rate', CAST(passing_tds / NULLIF(pass_attempts, 0) AS DOUBLE), 'higher', 'pct',
+      'QB', 5, 'INT rate', CAST(interceptions / NULLIF(pass_attempts, 0) AS DOUBLE), 'lower', 'pct',
+      'QB', 6, 'Sack rate taken', CAST(sacks_taken / NULLIF(pass_attempts + sacks_taken, 0) AS DOUBLE), 'lower', 'pct',
+      'QB', 7, 'Bad throw % (PFR)', CAST(IF(pfr_ok, bad_throw_pct, NULL) AS DOUBLE), 'lower', 'pct_native',
+      'QB', 8, 'Pressure rate faced (PFR)', CAST(IF(pfr_ok, pressure_rate_faced, NULL) AS DOUBLE), 'neutral', 'pct_native',
+      'QB', 9, 'Time to throw, sec (NGS)', CAST(avg_time_to_throw AS DOUBLE), 'neutral', 'dec2',
+      'QB', 10, 'Aggressiveness % (NGS)', CAST(aggressiveness AS DOUBLE), 'neutral', 'dec1',
+      'QB', 11, 'Rushing EPA per game', CAST(rushing_epa / NULLIF(games, 0) AS DOUBLE), 'higher', 'dec2',
+      'RB', 1, 'Rushing EPA per carry', CAST(rushing_epa / NULLIF(carries, 0) AS DOUBLE), 'higher', 'dec3',
+      'RB', 2, 'Yards per carry', CAST(rushing_yards / NULLIF(carries, 0) AS DOUBLE), 'higher', 'dec1',
+      'RB', 3, 'Rush yards over expected per carry (NGS)', CAST(rush_yards_over_expected_per_att AS DOUBLE), 'higher', 'dec2',
+      'RB', 4, 'Yards after contact per carry (PFR)', CAST(IF(pfr_ok, yards_after_contact_per_att, NULL) AS DOUBLE), 'higher', 'dec2',
+      'RB', 5, 'Broken tackles per 100 carries (PFR)', CAST(IF(pfr_ok, 100 * rush_broken_tackles / NULLIF(carries, 0), NULL) AS DOUBLE), 'higher', 'dec1',
+      'RB', 6, 'Receiving yards per game', CAST(receiving_yards / NULLIF(games, 0) AS DOUBLE), 'higher', 'dec1',
+      'RB', 7, 'Stacked-box rate (NGS)', CAST(stacked_box_rate AS DOUBLE), 'neutral', 'pct',
+      'REC', 1, 'Receiving EPA per target', CAST(receiving_epa / NULLIF(targets, 0) AS DOUBLE), 'higher', 'dec3',
+      'REC', 2, 'Receiving yards per game', CAST(receiving_yards / NULLIF(games, 0) AS DOUBLE), 'higher', 'dec1',
+      'REC', 3, 'Targets per game', CAST(targets / NULLIF(games, 0) AS DOUBLE), 'higher', 'dec1',
+      'REC', 4, 'Catch rate', CAST(receptions / NULLIF(targets, 0) AS DOUBLE), 'higher', 'pct',
+      'REC', 5, 'Separation, yds (NGS)', CAST(avg_separation AS DOUBLE), 'higher', 'dec2',
+      'REC', 6, 'YAC over expected (NGS)', CAST(avg_yac_above_expectation AS DOUBLE), 'higher', 'dec2',
+      'REC', 7, 'Share of team air yards (NGS)', CAST(air_yards_share AS DOUBLE), 'higher', 'pct',
+      'REC', 8, 'Drop rate (PFR)', CAST(IF(pfr_ok, drop_pct, NULL) AS DOUBLE), 'lower', 'pct_native',
+      'REC', 9, 'Average depth of target (PFR)', CAST(IF(pfr_ok, adot, NULL) AS DOUBLE), 'neutral', 'dec1',
+      'FRONT', 1, 'Sacks + QB hits per 100 snaps', CAST(sacks_hits_per_100_snaps AS DOUBLE), 'higher', 'dec1',
+      'FRONT', 2, 'Sacks', CAST(sacks AS DOUBLE), 'higher', 'dec1',
+      'FRONT', 3, 'Tackles per 100 snaps', CAST(tackles_per_100_snaps AS DOUBLE), 'higher', 'dec1',
+      'FRONT', 4, 'Pressures (PFR)', CAST(IF(pfr_ok, pressures, NULL) AS DOUBLE), 'higher', 'int',
+      'DEF', 5, 'Missed tackle rate (PFR)', CAST(IF(pfr_ok, missed_tackle_pct, NULL) AS DOUBLE), 'lower', 'pct_native',
+      'DB', 1, 'Passes defensed + INT per 100 snaps', CAST(ball_production_per_100_snaps AS DOUBLE), 'higher', 'dec1',
+      'DB', 2, 'Interceptions', CAST(pbp_interceptions AS DOUBLE), 'higher', 'int',
+      'DB', 3, 'Passer rating allowed (PFR)', CAST(IF(pfr_ok AND targets_allowed >= 10, passer_rating_allowed, NULL) AS DOUBLE), 'lower', 'dec1',
+      'DB', 4, 'Yards allowed per target (PFR)', CAST(IF(pfr_ok AND targets_allowed >= 10, yards_allowed / targets_allowed, NULL) AS DOUBLE), 'lower', 'dec1'
+    ) AS (metric_set, metric_order, metric, value, better, fmt)
+  FROM base
+),
+-- which metric sets apply to which position group
+applies AS (
+  SELECT * FROM VALUES
+    ('QB', 'QB'), ('RB', 'RB'), ('WR', 'REC'), ('TE', 'REC'),
+    ('DL', 'FRONT'), ('DL', 'DEF'), ('LB', 'FRONT'), ('LB', 'DEF'), ('DB', 'DB'), ('DB', 'DEF')
+  AS t(position_group, metric_set)
+),
+kept AS (
+  SELECT l.* FROM long l JOIN applies ap ON ap.position_group = l.position_group AND ap.metric_set = l.metric_set
+  WHERE l.value IS NOT NULL
+)
+SELECT k.season, k.player_id, k.position_group, k.metric_set, k.metric_order, k.metric, k.value, k.better, k.fmt, k.qualified,
+  CASE WHEN k.qualified THEN
+    PERCENT_RANK() OVER (PARTITION BY k.season, k.position_group, k.metric, k.qualified
+                         ORDER BY CASE WHEN k.better = 'lower' THEN -k.value ELSE k.value END)
+  END AS percentile,
+  COUNT(IF(k.qualified, 1, NULL)) OVER (PARTITION BY k.season, k.position_group, k.metric) AS peers
+FROM kept k;

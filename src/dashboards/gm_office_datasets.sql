@@ -137,3 +137,83 @@ SELECT x.team AS club, x.starter_games_out, x.starters_missing_time, x.player_ga
 FROM workspace.nfl.gold_team_injury_impact x
 WHERE x.season = (SELECT MAX(season) FROM workspace.nfl.gold_team_injury_impact)
 ORDER BY x.starter_games_out DESC;
+
+-- ================================================================ Player Profile page
+-- Bound to the page's Player picker through player_label. Team columns are named `club` so the
+-- dashboard-wide Team filter does not restrict which player you can look up.
+
+-- @pp_header
+SELECT f.player_label, f.headshot_url, f.player_name, f.position, f.club, f.jersey_number, f.age, f.height, f.weight_lb,
+       f.college, f.years_of_experience, f.draft,
+       ROUND(f.apy_m, 1) AS apy_m, ROUND(f.guaranteed_m, 1) AS guaranteed_m, f.final_season,
+       CASE f.performance_tier WHEN 'elite' THEN '⭐ elite' WHEN 'very good' THEN '🟢 very good' WHEN 'average' THEN '🟡 average'
+            WHEN 'below average' THEN '🔴 below average' ELSE 'not rated' END AS how_good,
+       CASE f.contract_verdict WHEN 'bargain' THEN '💰 bargain' WHEN 'overpaid' THEN '⚠️ overpaid' WHEN 'fair' THEN 'paid fairly'
+            ELSE '' END AS contract,
+       CASE WHEN f.production_basis LIKE 'last season%' THEN 'last season' ELSE f.production_basis END AS judged_on,
+       CONCAT(COALESCE(f.games_played, 0), ' of ', COALESCE(f.team_games_on_roster, 0)) AS games_this_season,
+       COALESCE(f.current_roster_status, 'not on a roster') AS status, f.latest_injury
+FROM workspace.nfl.gold_player_profile f;
+
+-- @pp_percentiles
+SELECT f.player_label, p.season,
+       CASE p.metric_set WHEN 'DEF' THEN 50 ELSE 0 END + p.metric_order AS metric_order,
+       p.metric,
+       CASE p.fmt WHEN 'pct' THEN CONCAT(FORMAT_NUMBER(100 * p.value, 1), '%') WHEN 'pct_native' THEN CONCAT(FORMAT_NUMBER(p.value, 1), '%')
+                  WHEN 'dec3' THEN FORMAT_NUMBER(p.value, 3) WHEN 'dec2' THEN FORMAT_NUMBER(p.value, 2)
+                  WHEN 'int' THEN FORMAT_NUMBER(p.value, 0) ELSE FORMAT_NUMBER(p.value, 1) END AS value,
+       ROUND(100 * p.percentile) AS percentile,
+       CASE WHEN p.better = 'neutral' THEN '⚪ style (not graded)'
+            WHEN p.percentile >= 0.9 THEN '⭐ elite' WHEN p.percentile >= 0.7 THEN '🟢 very good'
+            WHEN p.percentile >= 0.4 THEN '🟡 average' ELSE '🔴 below average' END AS grade,
+       CASE p.better WHEN 'lower' THEN 'lower is better' WHEN 'higher' THEN 'higher is better' ELSE 'tendency' END AS direction,
+       p.peers
+FROM workspace.nfl.gold_player_percentiles p
+JOIN workspace.nfl.gold_player_profile f ON f.player_id = p.player_id
+JOIN (SELECT player_id, MAX(season) AS season FROM workspace.nfl.gold_player_percentiles WHERE qualified GROUP BY player_id) latest
+  ON latest.player_id = p.player_id AND latest.season = p.season
+WHERE p.qualified
+ORDER BY metric_order;
+
+-- @pp_career
+SELECT f.player_label, a.season, a.latest_team AS club, a.games, ROUND(100 * a.snap_share) AS snap_pct, a.role,
+       a.pass_attempts, a.passing_yards, a.passing_tds, a.interceptions,
+       a.carries, a.rushing_yards, a.rushing_tds,
+       a.targets, a.receptions, a.receiving_yards, a.receiving_tds,
+       ROUND(COALESCE(a.passing_epa, 0) + COALESCE(a.rushing_epa, 0) + COALESCE(a.receiving_epa, 0), 1) AS offensive_epa,
+       a.tackles, a.sacks, a.sacks_plus_hits, a.passes_defensed, a.pbp_interceptions AS def_ints,
+       ROUND(a.fantasy_points_ppr, 1) AS fantasy_ppr
+FROM workspace.nfl.gold_player_advanced a
+JOIN workspace.nfl.gold_player_profile f ON f.player_id = a.player_id
+ORDER BY a.season DESC;
+
+-- @pp_gamelog
+SELECT f.player_label, w.week, w.opponent AS opp, ROUND(100 * GREATEST(COALESCE(s.offense_pct, 0), COALESCE(s.defense_pct, 0))) AS snap_pct,
+       w.completions, w.attempts, w.passing_yards, w.passing_tds, w.passing_interceptions AS ints,
+       w.carries, w.rushing_yards, w.rushing_tds, w.targets, w.receptions, w.receiving_yards, w.receiving_tds,
+       ROUND(COALESCE(w.passing_epa, 0) + COALESCE(w.rushing_epa, 0) + COALESCE(w.receiving_epa, 0), 1) AS offensive_epa,
+       w.def_tackles_solo + w.def_tackle_assists AS tackles, w.def_sacks AS sacks, w.def_interceptions AS def_ints,
+       ROUND(w.fantasy_points_ppr, 1) AS fantasy_ppr
+FROM workspace.nfl.silver_player_week w
+JOIN workspace.nfl.gold_player_profile f ON f.player_id = w.player_id
+LEFT JOIN workspace.nfl.silver_players pl ON pl.player_id = w.player_id
+LEFT JOIN workspace.nfl.silver_snap_counts s ON s.pfr_player_id = pl.pfr_id AND s.season = w.season AND s.week = w.week
+WHERE w.season = (SELECT MAX(season) FROM workspace.nfl.silver_player_week) AND w.season_type = 'REG'
+ORDER BY w.week;
+
+-- @pp_injuries
+SELECT f.player_label, av.season, av.games_played, av.games_missed_injured, av.games_missed_other,
+       av.current_roster_status AS season_end_status,
+       CONCAT_WS(', ', ARRAY_DISTINCT(COLLECT_LIST(w.injury))) AS injuries_reported
+FROM workspace.nfl.gold_player_availability av
+JOIN workspace.nfl.gold_player_profile f ON f.player_id = av.player_id
+LEFT JOIN workspace.nfl.gold_player_availability_week w ON w.season = av.season AND w.player_id = av.player_id AND w.injury IS NOT NULL
+GROUP BY f.player_label, av.season, av.games_played, av.games_missed_injured, av.games_missed_other, av.current_roster_status
+ORDER BY av.season DESC;
+
+-- @pp_combine
+SELECT f.player_label, c.draft_year AS combine_year, c.position, c.height, c.weight_lb,
+       c.forty, c.bench, c.vertical, c.broad_jump, c.cone, c.shuttle
+FROM workspace.nfl.silver_combine c
+JOIN workspace.nfl.silver_players pl ON pl.pfr_id = c.pfr_player_id
+JOIN workspace.nfl.gold_player_profile f ON f.player_id = pl.player_id;
